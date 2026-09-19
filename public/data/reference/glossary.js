@@ -7,6 +7,7 @@ export default [
   { term: 'Header', def: 'Siêu dữ liệu đi kèm request/response: Content-Type, Authorization, Cache-Control.', tag: 'HTTP' },
   { term: 'Query param', def: 'Tham số sau dấu ? trên URL, dùng để lọc, sắp xếp, phân trang. Luôn là chuỗi.', tag: 'HTTP' },
   { term: 'Path param', def: 'Tham số nằm trong đường dẫn, dùng để định danh tài nguyên: /orders/42.', tag: 'HTTP' },
+  { term: 'Safe method', def: 'Method chỉ đọc, không đổi gì trên server: GET, HEAD, OPTIONS. Mọi method safe đều idempotent.', tag: 'HTTP' },
   { term: 'Idempotent', def: 'Gọi lại nhiều lần cho cùng kết quả. GET, PUT, DELETE nên idempotent; POST thì không.', tag: 'HTTP' },
   { term: 'Stateless', def: 'Server không nhớ trạng thái giữa các request; mọi thứ cần biết nằm trong request hoặc database.', tag: 'Kiến trúc' },
   { term: 'CORS', def: 'Cơ chế trình duyệt kiểm soát request sang origin khác. Luôn cấu hình ở server.', tag: 'HTTP' },

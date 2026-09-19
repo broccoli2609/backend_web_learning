@@ -249,14 +249,22 @@ try { await fn(mws, {}); return 'khong-nem'; } catch (e) { return e.message; }`,
 {
   id: 'node-08', lang: 'node', level: 'Cơ bản', topic: 'HTTP', fn: 'classifyMethod',
   title: 'Phân loại HTTP method',
-  brief: `<p>Viết hàm <code>classifyMethod(method)</code> trả về <code>{ method, safe, idempotent, hasBody }</code>.</p>
-<ul>
-<li><code>method</code> luôn viết HOA trong kết quả, nhận vào có thể viết thường</li>
-<li><strong>safe</strong> (không thay đổi dữ liệu): GET, HEAD, OPTIONS</li>
-<li><strong>idempotent</strong>: GET, HEAD, OPTIONS, PUT, DELETE</li>
-<li><strong>hasBody</strong> (thường có body): POST, PUT, PATCH</li>
-<li>Method không nhận ra → mọi cờ đều <code>false</code></li>
-</ul>`,
+  brief: `<p>Viết hàm <code>classifyMethod(method)</code> phân loại một HTTP method theo ba tính chất đã học ở chương 1 bài 3.</p>
+
+<p>Hàm nhận vào <strong>một chuỗi</strong> và trả về <strong>một object gồm đúng bốn trường</strong>:</p>
+
+<table><thead><tr><th>Trường</th><th>Kiểu</th><th>Giá trị</th></tr></thead><tbody>
+<tr><td><code>method</code></td><td>chuỗi</td><td>Chính method đó, luôn viết HOA. Nhận vào có thể viết thường.</td></tr>
+<tr><td><code>safe</code></td><td>boolean</td><td><code>true</code> với GET, HEAD, OPTIONS — những method chỉ đọc, không đổi gì trên server</td></tr>
+<tr><td><code>idempotent</code></td><td>boolean</td><td><code>true</code> với GET, HEAD, OPTIONS, PUT, DELETE — gọi lại nhiều lần cho cùng kết quả</td></tr>
+<tr><td><code>hasBody</code></td><td>boolean</td><td><code>true</code> với POST, PUT, PATCH — những method thường mang dữ liệu trong thân request</td></tr>
+</tbody></table>
+
+<p>Ví dụ:</p>
+<pre><code>classifyMethod('put')
+// → { method: 'PUT', safe: false, idempotent: true, hasBody: true }</code></pre>
+
+<p>Method không nằm trong bảy method trên (ví dụ <code>'BREW'</code>) vẫn trả về tên viết HOA, nhưng cả ba boolean đều <code>false</code>.</p>`,
   starter: `function classifyMethod(method) {
   // Viết code ở đây
 }`,

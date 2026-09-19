@@ -44,11 +44,14 @@ flowchart LR
         explain: 'Quy tắc nghiệp vụ thuộc về service. Controller chỉ nhận/trả HTTP, repository chỉ đọc ghi dữ liệu. Đặt quy tắc ở service giúp test được mà không cần dựng server hay database.' }
     },
     {
-      id: 'c1l3', title: 'Stateless và idempotent',
+      id: 'c1l3', title: 'Stateless, safe và idempotent',
       body: `
-<p>Hai tính từ này xuất hiện trong mọi tài liệu backend, và hiểu sai chúng dẫn tới lỗi rất khó tìm.</p>
+<p>Ba tính từ này xuất hiện trong mọi tài liệu backend, và hiểu sai chúng dẫn tới lỗi rất khó tìm.</p>
 <p><strong>Stateless</strong> — server không nhớ gì về request trước. Mọi thứ cần biết phải nằm trong chính request (token, tham số) hoặc trong database. Nhờ vậy bạn có thể chạy 5 bản sao ứng dụng sau load balancer mà không quan tâm request rơi vào bản nào.</p>
-<p><strong>Idempotent</strong> — gọi lại nhiều lần cho cùng kết quả. <code>GET</code>, <code>PUT</code>, <code>DELETE</code> nên idempotent; <code>POST</code> thì không. Điều này quan trọng vì mạng không đáng tin: client mất kết nối giữa chừng sẽ gọi lại, và nếu <code>POST /orders</code> không được bảo vệ, khách hàng có hai đơn hàng.</p>
+<p><strong>Safe</strong> — method chỉ đọc, không làm thay đổi gì trên server. <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code> là safe. Nhờ tính chất này mà trình duyệt, proxy và bot tìm kiếm được phép gọi chúng thoải mái: bấm F5 trên một trang <code>GET</code> không tạo thêm đơn hàng nào.</p>
+<p><strong>Idempotent</strong> — gọi lại nhiều lần cho cùng kết quả. <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code>, <code>PUT</code>, <code>DELETE</code> nên idempotent; <code>POST</code> thì không. Điều này quan trọng vì mạng không đáng tin: client mất kết nối giữa chừng sẽ gọi lại, và nếu <code>POST /orders</code> không được bảo vệ, khách hàng có hai đơn hàng.</p>
+<p>Hai khái niệm sau lồng vào nhau: <strong>mọi method safe đều idempotent</strong> — không thay đổi gì thì gọi bao nhiêu lần kết quả cũng như nhau. Chiều ngược lại thì không: <code>DELETE</code> idempotent nhưng không safe, vì lần gọi đầu tiên có xoá thật.</p>
+<p>Nhóm thứ ba, <strong>có body</strong>, là chuyện khác hẳn — nó nói về việc method thường mang dữ liệu trong thân request hay không. <code>POST</code>, <code>PUT</code>, <code>PATCH</code> có; <code>GET</code> và <code>DELETE</code> thì thường không.</p>
 <p class="callout">Cách xử lý thực tế cho POST: client sinh một khoá <code>Idempotency-Key</code> gửi kèm; server lưu khoá đó và trả lại kết quả cũ nếu thấy khoá đã dùng.</p>`,
       check: { type: 'ex', exId: 'node-08' }
     }
@@ -62,13 +65,16 @@ flowchart LR
       id: 'c2l1', title: 'Method và status code',
       body: `
 <p>Mỗi API là một hợp đồng: method + URL + header + body. Method nói bạn muốn làm gì, status code nói kết quả ra sao.</p>
-<table><thead><tr><th>Method</th><th>Dùng khi</th><th>Idempotent</th></tr></thead><tbody>
-<tr><td>GET</td><td>Lấy dữ liệu</td><td>Có</td></tr>
-<tr><td>POST</td><td>Tạo mới hoặc hành động</td><td>Không</td></tr>
-<tr><td>PUT</td><td>Thay toàn bộ tài nguyên</td><td>Có</td></tr>
-<tr><td>PATCH</td><td>Sửa một phần</td><td>Không bắt buộc</td></tr>
-<tr><td>DELETE</td><td>Xoá</td><td>Có</td></tr>
+<table><thead><tr><th>Method</th><th>Dùng khi</th><th>Safe</th><th>Idempotent</th><th>Có body</th></tr></thead><tbody>
+<tr><td>GET</td><td>Lấy dữ liệu</td><td>Có</td><td>Có</td><td>Không</td></tr>
+<tr><td>HEAD</td><td>Như GET nhưng chỉ lấy header</td><td>Có</td><td>Có</td><td>Không</td></tr>
+<tr><td>OPTIONS</td><td>Hỏi server cho phép làm gì</td><td>Có</td><td>Có</td><td>Không</td></tr>
+<tr><td>POST</td><td>Tạo mới hoặc hành động</td><td>Không</td><td>Không</td><td>Có</td></tr>
+<tr><td>PUT</td><td>Thay toàn bộ tài nguyên</td><td>Không</td><td>Có</td><td>Có</td></tr>
+<tr><td>PATCH</td><td>Sửa một phần</td><td>Không</td><td>Không bắt buộc</td><td>Có</td></tr>
+<tr><td>DELETE</td><td>Xoá</td><td>Không</td><td>Có</td><td>Không</td></tr>
 </tbody></table>
+<p class="callout"><strong>Safe</strong> nghĩa là chỉ đọc, không đổi gì trên server. <strong>Idempotent</strong> nghĩa là gọi lại cho cùng kết quả. Mọi method safe đều idempotent, nhưng không ngược lại.</p>
 <p>Status code chia theo nhóm: <strong>2xx</strong> thành công, <strong>3xx</strong> chuyển hướng, <strong>4xx</strong> lỗi do client, <strong>5xx</strong> lỗi do server. Ranh giới 4xx/5xx rất quan trọng khi giám sát: 4xx tăng nghĩa là client gọi sai, 5xx tăng nghĩa là bạn phải sửa code ngay.</p>
 <p>Ba cặp hay nhầm:</p>
 <ul>
