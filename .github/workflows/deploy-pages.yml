@@ -1,0 +1,75 @@
+# Chạy test, rồi deploy thư mục public/ lên GitHub Pages.
+#
+# Workflow là một file YAML mô tả: khi nào chạy (on), quyền gì (permissions),
+# và gồm những công việc nào (jobs). GitHub đọc file này và tự làm theo.
+
+name: Kiểm thử và deploy GitHub Pages
+
+# KHI NÀO CHẠY
+on:
+  push:
+    branches: [main]      # mỗi lần push lên nhánh main
+  workflow_dispatch:      # và khi bạn tự bấm nút Run ở tab Actions
+
+# QUYỀN CẤP CHO WORKFLOW
+# Chỉ cấp đúng thứ cần: đọc code, ghi lên Pages, xin token xác thực.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Nếu bạn push hai lần liên tiếp, huỷ lượt cũ để khỏi deploy chồng nhau.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # CÔNG VIỆC 1 — chạy test
+  test:
+    name: Chạy test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy code về
+        uses: actions/checkout@v4
+
+      - name: Cài Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cài dependency
+        run: npm ci
+
+      - name: Kiểm tra nội dung
+        run: npm run check
+
+      - name: Chạy lời giải mẫu qua bộ test
+        run: npm run test:exercises
+
+      - name: Integration test cho API
+        run: npm run test:api
+
+  # CÔNG VIỆC 2 — deploy, chỉ chạy khi công việc 1 xanh
+  deploy:
+    name: Deploy lên GitHub Pages
+    needs: test           # đây là chỗ chặn: test đỏ thì không deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Lấy code về
+        uses: actions/checkout@v4
+
+      - name: Chuẩn bị Pages
+        uses: actions/configure-pages@v5
+
+      - name: Đóng gói thư mục public
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public   # QUAN TRỌNG: chỉ deploy public/, không deploy cả repo
+
+      - name: Đưa lên Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

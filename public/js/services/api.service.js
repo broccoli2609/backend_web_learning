@@ -6,7 +6,25 @@
  * phần còn lại của ứng dụng chỉ dùng API khi `isOnline()` trả về true.
  */
 
-const state = { online: false, checked: false, baseUrl: '' };
+/**
+ * Gốc của API, suy ra từ vị trí của chính file này.
+ *
+ * Trang chạy ở hai chỗ có gốc khác nhau:
+ *   - server Express : http://host/            → gốc là ''
+ *   - GitHub Pages   : http://…/<tên-repo>/    → gốc là '/<tên-repo>'
+ * Lấy theo `import.meta.url` (đường dẫn của module này) thay vì theo địa chỉ
+ * trang, vì địa chỉ trang đổi theo route còn vị trí file thì không.
+ */
+function detectBaseUrl() {
+  try {
+    // file này ở <gốc>/js/services/ nên lùi hai cấp là về gốc
+    return new URL('../../', import.meta.url).pathname.replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+const state = { online: false, checked: false, baseUrl: detectBaseUrl() };
 
 const TIMEOUT_MS = 2500;
 

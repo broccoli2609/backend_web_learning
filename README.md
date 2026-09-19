@@ -272,9 +272,89 @@ Muốn tự động ở bản tự host: viết một GitHub Action chạy theo 
 
 ## Deploy
 
-**Chỉ phần tĩnh** (GitHub Pages, Netlify, Cloudflare Pages): trỏ thư mục gốc vào `public/`. Không có bước build. Mất phần API, tiến độ lưu trong trình duyệt.
+Dự án có hai hình dạng deploy. Chọn theo việc bạn cần gì, không cần làm cả hai.
 
-**Cả server** (Render, Railway, Fly.io, VPS): `npm ci && npm start`. Nhớ đặt `NODE_ENV=production` và `CORS_ORIGINS`; trỏ `STORAGE_DIR` vào một ổ đĩa lưu lâu dài, nếu không tiến độ mất mỗi lần deploy.
+| | Bản tĩnh | Bản có server |
+| --- | --- | --- |
+| Deploy cái gì | Chỉ `public/` | Cả repo |
+| Chi phí | Miễn phí | Miễn phí (có giới hạn) hoặc ~2 USD/tháng |
+| Mở trang | Tức thì | Chờ ~1 phút nếu server đang ngủ (gói free) |
+| Tiến độ học | Lưu riêng từng trình duyệt | Lưu trên server, nhưng cần đĩa lưu lâu dài mới giữ được |
+| Có API | Không | Có |
+
+### A. Bản tĩnh lên GitHub Pages
+
+Repo đã có sẵn `.github/workflows/deploy-pages.yml`. Nó chạy test trước, test xanh mới deploy.
+
+**Bước 1 — bật Pages.** Vào repo trên GitHub → **Settings** → **Pages** (cột trái). Ở mục **Source**, chọn **GitHub Actions**. Không chọn "Deploy from a branch" — cách đó không chạy được test và không trỏ vào `public/` được.
+
+Bước này chỉ làm một lần cho mỗi repo.
+
+**Bước 2 — push.**
+
+```bash
+git push
+```
+
+Push lên `main` là workflow tự chạy. Không cần bấm gì thêm.
+
+**Bước 3 — xem nó chạy.** Vào tab **Actions** của repo. Bạn sẽ thấy hai ô nối nhau: `Chạy test` rồi `Deploy lên GitHub Pages`. Bấm vào để xem log từng bước — đây là chỗ đọc khi có lỗi.
+
+Lần đầu mất khoảng 1–2 phút.
+
+**Bước 4 — mở trang.** Khi ô deploy chuyển xanh, địa chỉ hiện ngay trong đó, dạng:
+
+```
+https://<tên-github>.github.io/<tên-repo>/
+```
+
+Từ giờ mỗi lần `git push`, trang tự cập nhật. Không phải làm lại bước nào.
+
+**Nếu workflow đỏ:** mở log ở tab Actions, tìm bước đầu tiên có dấu ✗. Lỗi hay gặp nhất là test không qua — nghĩa là bạn sửa nội dung mà quên chạy `npm test` ở máy trước khi push.
+
+### B. Bản có server lên Render
+
+Repo đã có sẵn `render.yaml` khai báo toàn bộ cấu hình.
+
+**Bước 1 — tạo tài khoản** ở [render.com](https://render.com), đăng nhập bằng GitHub để Render đọc được repo.
+
+**Bước 2 — tạo service.** Bấm **New** → **Blueprint** → chọn repo này. Render đọc `render.yaml` và điền sẵn mọi thứ: chạy `npm ci`, khởi động bằng `npm start`, vùng Singapore, health check ở `/api/health/live`.
+
+**Bước 3 — xem log khởi động.** Render dựng xong sẽ in log. Dòng bạn cần thấy:
+
+```
+Server chạy ở http://localhost:10000 (production)
+```
+
+**Bước 4 — kiểm tra bằng health check** trước khi mở trang:
+
+```bash
+curl https://<tên-service>.onrender.com/api/health
+```
+
+Trả về `"status": "healthy"` là server sống và đọc được nơi lưu trữ.
+
+**Bước 5 — sửa CORS_ORIGINS.** Sau khi biết địa chỉ thật, vào service → **Environment** → sửa `CORS_ORIGINS` thành đúng địa chỉ đó. Không sửa thì trình duyệt chặn request từ trang khác origin.
+
+**Hai giới hạn của gói free**, biết trước để khỏi tưởng hỏng:
+
+- Service **ngủ sau 15 phút** không ai truy cập. Lần mở kế tiếp chờ khoảng một phút.
+- **Không có đĩa lưu lâu dài.** `server/storage/` bị xoá mỗi lần khởi động lại. Tiến độ vẫn an toàn nhờ bản sao trong `localStorage` của trình duyệt.
+
+Muốn tiến độ thật sự nằm trên server: dùng gói trả phí có disk, hoặc đổi nơi lưu sang database. Trường hợp sau chỉ phải viết lại `server/models/progress.model.js` — đó chính là lý do tầng repository tồn tại.
+
+### Deploy lên chỗ khác
+
+Không có bước build, nên mọi static host đều nhận được `public/`: Netlify, Cloudflare Pages, Vercel. Chỉ cần trỏ thư mục gốc vào `public/`.
+
+Với server, bất kỳ chỗ nào chạy được Node đều dùng chung một công thức:
+
+```bash
+npm ci        # cài dependency đúng theo package-lock.json
+npm start     # node server/server.js
+```
+
+Cộng ba biến môi trường: `NODE_ENV=production`, `PORT` (nhiều nền tảng tự cấp), `CORS_ORIGINS`. Nếu chỗ đó có đĩa lưu lâu dài thì trỏ thêm `STORAGE_DIR` vào đấy.
 
 ---
 

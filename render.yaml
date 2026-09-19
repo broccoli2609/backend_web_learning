@@ -1,0 +1,48 @@
+# Cấu hình deploy server Express lên Render.
+#
+# File này gọi là "blueprint": thay vì bấm chọn từng ô trên giao diện Render,
+# bạn khai báo mọi thứ ở đây và Render đọc theo. Ưu điểm là cấu hình nằm trong
+# git — người khác clone repo về deploy được y hệt, và bạn thấy được lịch sử
+# thay đổi cấu hình.
+#
+# Cách dùng: Render → New → Blueprint → chọn repo này.
+#
+# LƯU Ý VỀ GÓI MIỄN PHÍ
+# Gói free của Render KHÔNG có đĩa lưu trữ lâu dài, nên thư mục server/storage
+# bị xoá mỗi lần service khởi động lại (và nó ngủ sau 15 phút không ai truy cập).
+# Tiến độ học vẫn an toàn vì trình duyệt luôn giữ một bản trong localStorage.
+# Muốn tiến độ nằm lại trên server thì phải dùng gói trả phí có disk, hoặc đổi
+# nơi lưu sang database — chỉ phải sửa server/models/progress.model.js.
+
+services:
+  - type: web
+    name: xuong-backend
+    runtime: node
+    plan: free
+
+    # Chọn vùng gần người dùng nhất. Singapore là vùng gần Việt Nam nhất
+    # mà Render có.
+    region: singapore
+
+    buildCommand: npm ci
+    startCommand: npm start
+
+    # Render gọi đường dẫn này để biết service đã sẵn sàng nhận traffic chưa.
+    # Chương 7 nói vì sao endpoint này nên nhẹ và tách khỏi liveness.
+    healthCheckPath: /api/health/live
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render tự cấp PORT qua biến môi trường; server đã đọc sẵn biến này.
+      - key: PORT
+        value: 10000
+
+      # Origin được phép gọi API. Sửa lại cho đúng tên service của bạn sau khi
+      # deploy lần đầu, hoặc để trống nếu chỉ gọi API từ chính trang này.
+      - key: CORS_ORIGINS
+        value: https://xuong-backend.onrender.com
+
+      - key: LOG_LEVEL
+        value: info
