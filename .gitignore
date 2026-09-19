@@ -1,0 +1,23 @@
+node_modules/
+
+# Cấu hình và secret — chỉ commit .env.example
+.env
+.env.*
+!.env.example
+
+# Dữ liệu người dùng do server sinh ra
+server/storage/
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Trình soạn thảo
+.vscode/
+.idea/
+*.swp
+
+# Log
+npm-debug.log*
+*.log

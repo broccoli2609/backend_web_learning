@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Xưởng Backend</title>
+<meta name="description" content="Trang học backend Node.js và ASP.NET Core: lý thuyết, bài tập có chấm tự động, và bảng phiên bản thư viện.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f5fd6'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' font-weight='bold' fill='%23fff' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Source+Sans+3:ital,wght@0,400..600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-name">Xưởng Backend</span>
+      <span class="brand-sub">node.js · asp.net core</span>
+    </div>
+    <nav class="nav" id="nav-desktop" aria-label="Điều hướng chính"></nav>
+    <div class="side-progress">
+      <span class="label">Tiến độ chung</span>
+      <div class="bar"><span id="side-bar" style="width:0%"></span></div>
+      <span class="tiny muted num" id="side-text">đang tải…</span>
+      <button class="theme-toggle" id="theme-desktop" type="button">Đổi giao diện</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <span class="brand-name">Xưởng Backend</span>
+        </div>
+        <button class="theme-toggle" id="theme-mobile" type="button">Giao diện</button>
+      </div>
+      <nav class="nav" id="nav-mobile" aria-label="Điều hướng chính"></nav>
+    </div>
+    <main id="view" class="wrap" tabindex="-1"></main>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>

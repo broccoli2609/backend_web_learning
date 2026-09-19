@@ -1,0 +1,25 @@
+{
+  "name": "backend-web-learning",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Xưởng Backend — trang học backend Node.js và ASP.NET Core, frontend tách MVC và server Express theo MVC.",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "static": "npx --yes serve public -l 5173",
+    "test": "npm run check && npm run test:exercises && npm run test:api",
+    "test:exercises": "node scripts/verify-exercises.mjs",
+    "test:api": "node --test scripts/api.test.mjs",
+    "check": "node scripts/check-content.mjs"
+  },
+  "keywords": ["backend", "nodejs", "express", "aspnetcore", "mvc", "hoc-lap-trinh"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
