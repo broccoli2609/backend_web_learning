@@ -91,6 +91,7 @@ export function renderExercise({ exercise, record, graderAvailable }) {
       </div>
       <textarea class="code-input" id="code-input" spellcheck="false" aria-label="Khung viết code">${esc(code)}</textarea>
     </div>
+    <p class="editor-hint">Tab thụt lề (Shift+Tab bỏ thụt) · Enter tự canh lề · gõ <code>(</code> <code>[</code> <code>{</code> <code>"</code> tự đóng · Ctrl+Z hoàn tác</p>
 
     <div class="btn-row" style="margin-top:12px">
       ${isNode

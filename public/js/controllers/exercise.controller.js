@@ -9,6 +9,7 @@ import { progressModel } from '../models/progress.model.js';
 import { testRunner } from '../services/test-runner.service.js';
 import { graderService } from '../services/grader.service.js';
 import { describeClaudeError } from '../services/claude.service.js';
+import { enhanceEditor } from '../services/editor.service.js';
 import { wrapTables } from '../views/components.view.js';
 import {
   renderExerciseList, renderExercise, renderTestResults,
@@ -93,7 +94,7 @@ export const exerciseController = {
     const output = root.querySelector('#ex-output');
     if (!editor || !output) return;
 
-    enableTabIndent(editor);
+    enhanceEditor(editor);
 
     root.querySelector('#reset-code')?.addEventListener('click', () => {
       editor.value = exercise.starter;
@@ -185,14 +186,3 @@ async function withBusyButton(button, busyLabel, work) {
   }
 }
 
-/** Phím Tab trong khung code chèn khoảng trắng thay vì nhảy sang nút khác. */
-function enableTabIndent(textarea) {
-  textarea.addEventListener('keydown', (event) => {
-    if (event.key !== 'Tab') return;
-    event.preventDefault();
-
-    const { selectionStart: start, selectionEnd: end, value } = textarea;
-    textarea.value = `${value.slice(0, start)}  ${value.slice(end)}`;
-    textarea.selectionStart = textarea.selectionEnd = start + 2;
-  });
-}
