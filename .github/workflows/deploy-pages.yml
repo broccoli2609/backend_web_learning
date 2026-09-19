@@ -64,6 +64,9 @@ jobs:
 
       - name: Chuẩn bị Pages
         uses: actions/configure-pages@v5
+        with:
+          # Tự bật Pages cho repo nếu chưa bật, khỏi phải vào Settings trước
+          enablement: true
 
       - name: Đóng gói thư mục public
         uses: actions/upload-pages-artifact@v3

@@ -290,6 +290,16 @@ Repo đã có sẵn `.github/workflows/deploy-pages.yml`. Nó chạy test trư�
 
 Bước này chỉ làm một lần cho mỗi repo.
 
+Workflow có `enablement: true` nên nó tự bật Pages nếu bạn quên. Nhưng cứ bật tay thì chắc chắn hơn: một số loại tài khoản không cho action tự bật, và lúc đó lỗi báo ra khá khó đoán:
+
+```
+Error: Get Pages site failed.
+Please verify that the repository has Pages enabled and configured
+to build using GitHub Actions
+```
+
+Câu đó luôn có nghĩa là **Settings → Pages chưa chọn GitHub Actions**, chứ không phải workflow viết sai.
+
 **Bước 2 — push.**
 
 ```bash
