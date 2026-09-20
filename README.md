@@ -289,17 +289,17 @@ Repo đã có sẵn `.github/workflows/deploy-pages.yml`. Nó chạy test trư�
 
 **Bước 1 — bật Pages.** Vào repo trên GitHub → **Settings** → **Pages** (cột trái). Ở mục **Source**, chọn **GitHub Actions**. Không chọn "Deploy from a branch" — cách đó không chạy được test và không trỏ vào `public/` được.
 
-Bước này chỉ làm một lần cho mỗi repo.
+Bước này **bắt buộc**, và chỉ làm một lần cho mỗi repo. Workflow không tự bật hộ được: tuỳ chọn `enablement: true` của `actions/configure-pages` cần một token khác `GITHUB_TOKEN` (personal access token có scope `repo`), mà workflow thì chỉ có token mặc định.
 
-Workflow có `enablement: true` nên nó tự bật Pages nếu bạn quên. Nhưng cứ bật tay thì chắc chắn hơn: một số loại tài khoản không cho action tự bật, và lúc đó lỗi báo ra khá khó đoán:
+Quên bước này thì job deploy chết ở bước "Chuẩn bị Pages":
 
 ```
-Error: Get Pages site failed.
-Please verify that the repository has Pages enabled and configured
-to build using GitHub Actions
+Warning: Get Pages site failed.
+Error: Create Pages site failed.
+Resource not accessible by integration
 ```
 
-Câu đó luôn có nghĩa là **Settings → Pages chưa chọn GitHub Actions**, chứ không phải workflow viết sai.
+Hai dòng đó luôn có nghĩa là **Settings → Pages chưa chọn GitHub Actions**, chứ không phải workflow viết sai.
 
 **Bước 2 — push.**
 

@@ -2,6 +2,10 @@
 #
 # Workflow là một file YAML mô tả: khi nào chạy (on), quyền gì (permissions),
 # và gồm những công việc nào (jobs). GitHub đọc file này và tự làm theo.
+#
+# TRƯỚC KHI PUSH LẦN ĐẦU: vào repo trên GitHub → Settings → Pages → mục Source
+# chọn "GitHub Actions". Chỉ làm một lần cho mỗi repo.
+# Workflow này KHÔNG tự bật Pages được — xem ghi chú ở bước "Chuẩn bị Pages".
 
 name: Kiểm thử và deploy GitHub Pages
 
@@ -30,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Lấy code về
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Cài Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -60,19 +64,24 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Lấy code về
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Chuẩn bị Pages
-        uses: actions/configure-pages@v5
-        with:
-          # Tự bật Pages cho repo nếu chưa bật, khỏi phải vào Settings trước
-          enablement: true
+        uses: actions/configure-pages@v6
+        # KHÔNG dùng `enablement: true` ở đây.
+        # Tuỳ chọn đó bảo action tự bật Pages cho repo, nhưng tài liệu của nó
+        # ghi rõ: cần một token KHÁC GITHUB_TOKEN (personal access token có
+        # scope `repo`). Token mặc định của workflow không tạo được Pages site,
+        # nên bước này sẽ chết với dòng:
+        #     Error: Create Pages site failed.
+        #     Resource not accessible by integration
+        # Cách đúng là bật tay một lần: Settings → Pages → Source → GitHub Actions.
 
       - name: Đóng gói thư mục public
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./public   # QUAN TRỌNG: chỉ deploy public/, không deploy cả repo
 
       - name: Đưa lên Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
