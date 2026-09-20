@@ -74,10 +74,29 @@ function renderIo(io) {
   return html + '</div>';
 }
 
+/**
+ * Một bài có thể chạy test thật khi nó khai báo tests. Bài viết cấu hình
+ * (Dockerfile, docker-compose, schema.prisma, .env) không có gì để chạy trong
+ * trình duyệt, nên được chấm theo danh sách tiêu chí giống bài ASP.NET Core.
+ */
+export function isRunnable(exercise) {
+  return Boolean(exercise?.tests?.length);
+}
+
+function fileNameOf(exercise) {
+  if (exercise.file) return exercise.file;
+  return exercise.lang === 'node' ? 'solution.js' : 'Solution.cs';
+}
+
+function syntaxOf(exercise) {
+  if (exercise.syntax) return exercise.syntax;
+  return exercise.lang === 'node' ? 'javascript' : 'csharp';
+}
+
 export function renderExercise({ exercise, record, graderAvailable }) {
   if (!exercise) return emptyState('Không tìm thấy bài tập này.');
 
-  const isNode = exercise.lang === 'node';
+  const runnable = isRunnable(exercise);
   const code = record?.code ?? exercise.starter;
 
   let html = pageHead({
@@ -104,7 +123,7 @@ export function renderExercise({ exercise, record, graderAvailable }) {
     </details>`;
   }
 
-  if (!isNode && exercise.rubric?.length) {
+  if (!runnable && exercise.rubric?.length) {
     html += `<div class="card" style="margin-top:12px">
       <span class="eyebrow">Sẽ được chấm theo</span>
       <ul class="rubric-list muted">${exercise.rubric.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
@@ -121,24 +140,24 @@ export function renderExercise({ exercise, record, graderAvailable }) {
   html += `<section>
     <div class="editor-wrap">
       <div class="editor-head">
-        <span>${isNode ? 'solution.js' : 'Solution.cs'}</span>
-        <span>${isNode ? 'javascript' : 'csharp'}</span>
+        <span>${esc(fileNameOf(exercise))}</span>
+        <span>${esc(syntaxOf(exercise))}</span>
       </div>
       <textarea class="code-input" id="code-input" spellcheck="false" aria-label="Khung viết code">${esc(code)}</textarea>
     </div>
 
     <div class="btn-row" style="margin-top:12px">
-      ${isNode
+      ${runnable
         ? '<button class="btn" id="run-tests" type="button">Chạy test</button>'
         : '<button class="btn" id="grade-code" type="button">Nộp bài cho Claude chấm</button>'}
       <button class="btn ghost" id="reset-code" type="button">Khôi phục code mẫu</button>
-      ${isNode ? '<button class="btn ghost" id="review-code" type="button">Nhờ Claude nhận xét</button>' : ''}
+      ${runnable ? '<button class="btn ghost" id="review-code" type="button">Nhờ Claude nhận xét</button>' : ''}
     </div>`;
 
   if (!graderAvailable) {
     html += banner(
       'Bản này không gọi được Claude để chấm bài. ' +
-      (isNode
+      (runnable
         ? 'Test vẫn chạy bình thường, chỉ phần nhận xét là không dùng được.'
         : 'Bạn vẫn tự đối chiếu được với danh sách tiêu chí bên trái và lời giải mẫu.')
     );

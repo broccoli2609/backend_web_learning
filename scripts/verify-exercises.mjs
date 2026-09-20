@@ -14,7 +14,7 @@ if (typeof globalThis.atob !== 'function') {
   globalThis.atob = (s) => Buffer.from(s, 'base64').toString('binary');
 }
 
-const exercises = EXERCISES.filter((e) => e.lang === 'node');
+const exercises = EXERCISES.filter((e) => e.lang === 'node' && e.tests?.length);
 
 let failed = 0;
 let ran = 0;
@@ -55,7 +55,7 @@ for (const exercise of exercises) {
   }
 }
 
-console.log(`\n${exercises.length} bài Node.js · ${ran} test · ${EXERCISES.length} bài tập tổng cộng`);
+console.log(`\n${exercises.length} bài Node.js chạy test · ${ran} test · ${EXERCISES.length} bài tập tổng cộng`);
 
 if (failed > 0) {
   console.error(`✕ ${failed} test hỏng`);

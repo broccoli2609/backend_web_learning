@@ -18,19 +18,28 @@ for (const exercise of EXERCISES) {
   // kê những kiểu đã có sẵn. Thiếu phần này là người học phải ngồi đoán.
   if (!exercise.io) {
     problems.push(`${exercise.id}: thiếu phần mô tả đầu vào (io)`);
-  } else if (exercise.lang === 'node') {
+  } else if (exercise.lang === 'node' && exercise.tests?.length) {
     if (!exercise.io.signature) problems.push(`${exercise.id}: io thiếu signature`);
     if (!exercise.io.params?.length) problems.push(`${exercise.id}: io thiếu danh sách tham số`);
     if (!exercise.io.returns) problems.push(`${exercise.id}: io thiếu mô tả giá trị trả về`);
     for (const param of exercise.io.params ?? []) {
       if (param.length !== 3) problems.push(`${exercise.id}: tham số io phải đủ [tên, kiểu, mô tả]`);
     }
-  } else if (!exercise.io.given && !exercise.io.note) {
+  } else if (!exercise.io.given && !exercise.io.note && !exercise.io.signature) {
     problems.push(`${exercise.id}: io của bài .NET cần given hoặc note`);
   }
 
-  if (exercise.lang === 'node' && (!exercise.fn || !exercise.tests?.length)) {
-    problems.push(`${exercise.id}: bài Node.js phải có fn và tests`);
+  // Bài Node có hai dạng: chạy test thật (cần fn + tests), hoặc viết cấu hình
+  // rồi chấm theo tiêu chí (cần rubric). Bài .NET luôn chấm theo tiêu chí.
+  const runnable = Boolean(exercise.tests?.length);
+  if (exercise.lang === 'node') {
+    if (runnable && !exercise.fn) problems.push(`${exercise.id}: bài có tests thì phải khai báo fn`);
+    if (!runnable && !exercise.rubric?.length) {
+      problems.push(`${exercise.id}: bài Node.js phải có tests, hoặc rubric nếu là bài viết cấu hình`);
+    }
+    if (!runnable && !exercise.file) {
+      problems.push(`${exercise.id}: bài chấm theo tiêu chí phải nói rõ tên file (file)`);
+    }
   }
   if (exercise.lang === 'dotnet' && !exercise.rubric?.length) {
     problems.push(`${exercise.id}: bài .NET phải có rubric`);

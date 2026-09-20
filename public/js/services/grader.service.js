@@ -1,20 +1,28 @@
 /**
  * SERVICE — Chấm bài bằng Claude.
  *
- * C# không chạy được trong trình duyệt, nên bài ASP.NET Core được chấm bằng
- * cách đưa đề bài, danh sách tiêu chí và code của người học cho Claude đọc.
- * Bài JavaScript đã có test chạy thật; Claude ở đó chỉ để nhận xét cách viết.
+ * Có những bài không chạy test được trong trình duyệt: code C#, và cả những
+ * file cấu hình như Dockerfile hay schema.prisma. Những bài đó được chấm bằng
+ * cách đưa đề bài, danh sách tiêu chí và bài làm cho Claude đọc.
+ * Bài JavaScript có test thì chạy test thật; Claude ở đó chỉ để nhận xét.
  */
 import { claudeService } from './claude.service.js';
 import { stripTags } from '../models/content.model.js';
 
 const MAX_CODE_CHARS = 12000;
 
+/** Nhãn nền tảng và tên ngôn ngữ cho khối code trong prompt. */
+function contextOf(exercise) {
+  if (exercise.lang === 'dotnet') return { subject: 'ASP.NET Core', fence: 'csharp' };
+  return { subject: `Node.js (file ${exercise.file ?? 'solution.js'})`, fence: exercise.syntax ?? 'javascript' };
+}
+
 function buildGradingPrompt(exercise, code) {
   const rubric = (exercise.rubric ?? []).map((item, i) => `${i + 1}. ${item}`).join('\n');
+  const { subject, fence } = contextOf(exercise);
 
   return [
-    'Bạn là giám khảo chấm bài tập ASP.NET Core cho một người mới học backend.',
+    `Bạn là giám khảo chấm bài tập ${subject} cho một người mới học backend.`,
     'Chấm nghiêm túc nhưng khích lệ, viết hoàn toàn bằng tiếng Việt.',
     '',
     `ĐỀ BÀI: ${exercise.title}`,
@@ -24,7 +32,7 @@ function buildGradingPrompt(exercise, code) {
     rubric,
     '',
     'BÀI LÀM CỦA HỌC VIÊN:',
-    '```csharp',
+    '```' + fence,
     code.slice(0, MAX_CODE_CHARS),
     '```',
     '',

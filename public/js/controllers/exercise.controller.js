@@ -13,7 +13,7 @@ import { enhanceEditor } from '../services/editor.service.js';
 import { wrapTables } from '../views/components.view.js';
 import {
   renderExerciseList, renderExercise, renderTestResults,
-  renderGrade, renderPending, renderFailure, renderReviewShell
+  renderGrade, renderPending, renderFailure, renderReviewShell, isRunnable
 } from '../views/exercise.view.js';
 import { router } from './router.js';
 import { progressChanged } from './events.js';

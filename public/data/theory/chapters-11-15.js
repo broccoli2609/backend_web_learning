@@ -2,7 +2,7 @@
 
 export default [
 {
-  id: 'c11', num: 11, title: 'Node.js và Express',
+  id: 'c11', num: 11, title: 'Node.js đi sâu: event loop và pipeline',
   summary: 'Event loop, middleware pipeline, routing, cấu trúc project, package hay dùng.',
   lessons: [
     {
