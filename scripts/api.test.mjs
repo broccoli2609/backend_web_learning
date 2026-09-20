@@ -19,6 +19,10 @@ process.env.LOG_LEVEL = 'error';
 
 const { createApp } = await import('../server/app.js');
 
+// So với chính nội dung đang có, không phải với một con số viết cứng — thêm
+// chương hay thêm bài tập thì test vẫn đúng, còn API trả thiếu thì vẫn hỏng.
+const { THEORY, EXERCISES } = await import('../public/data/index.js');
+
 let server;
 let baseUrl;
 
@@ -58,17 +62,23 @@ test('GET /api/health/live không chạm nơi lưu trữ', async () => {
   assert.equal((await res.json()).status, 'healthy');
 });
 
-test('GET /api/content/theory trả đủ 15 chương', async () => {
+test('GET /api/content/theory trả đủ số chương đang có', async () => {
   const body = await (await get('/api/content/theory')).json();
-  assert.equal(body.items.length, 15);
+  assert.equal(body.items.length, THEORY.length);
   assert.ok(body.items[0].lessons.length > 0);
+
+  // Số chương hiển thị phải liên tục từ 1, vì nó do thứ tự trong ORDER sinh ra
+  assert.deepEqual(
+    body.items.map((chapter) => chapter.num),
+    THEORY.map((_, index) => index + 1)
+  );
 });
 
 test('GET /api/content/exercises phân trang và lọc được', async () => {
   const page = await (await get('/api/content/exercises?size=5&page=2')).json();
   assert.equal(page.items.length, 5);
   assert.equal(page.page, 2);
-  assert.ok(page.total >= 50);
+  assert.equal(page.total, EXERCISES.length);
   assert.equal(page.hasPrev, true);
 
   const nodeOnly = await (await get('/api/content/exercises?lang=node&size=100')).json();
