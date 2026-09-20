@@ -10,6 +10,8 @@ import videoExpressDuLieu from './theory/video-02-express-du-lieu.js';
 import videoBaoMatProduction from './theory/video-03-bao-mat-production.js';
 import nodeExercises from './exercises/node.js';
 import nodeVideoExercises from './exercises/node-video.js';
+import nodePracticeExercises from './exercises/node-practice.js';
+import nodePractice2Exercises from './exercises/node-practice-2.js';
 import dotnetExercises from './exercises/dotnet.js';
 import glossary from './reference/glossary.js';
 import roadmap from './reference/roadmap.js';
@@ -58,7 +60,13 @@ function orderChapters(chapters, order) {
 }
 
 export const THEORY = orderChapters(ALL_CHAPTERS, ORDER);
-export const EXERCISES = [...nodeExercises, ...nodeVideoExercises, ...dotnetExercises];
+export const EXERCISES = [
+  ...nodeExercises,
+  ...nodeVideoExercises,
+  ...nodePracticeExercises,
+  ...nodePractice2Exercises,
+  ...dotnetExercises
+];
 export const GLOSSARY = glossary;
 export const ROADMAP = roadmap;
 export const LIBRARIES = libraries;

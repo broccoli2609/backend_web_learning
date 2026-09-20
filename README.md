@@ -2,10 +2,11 @@
 
 Trang web tự học backend cho **Node.js / Express** và **ASP.NET Core Web API** — và bản thân nó cũng là một ví dụ về những thứ nó dạy: frontend tách Model–View–Controller, server Express xếp lớp Routes → Controllers → Services → Models.
 
-- 15 chương lý thuyết, 52 bài học — mỗi bài kết thúc bằng một câu hỏi hoặc một bài code
-- 50 bài tập: 25 bài Node.js chạy test thật trong trình duyệt, 25 bài ASP.NET Core chấm theo tiêu chí
-- Lộ trình 5 giai đoạn có checklist, từ điển 70 thuật ngữ, bảng phiên bản thư viện
-- 17 integration test cho API, 143 test cho ngân hàng bài tập
+- 26 chương lý thuyết, 101 bài học — mỗi bài kết thúc bằng một câu hỏi hoặc một bài code
+- 132 bài tập: 104 bài Node.js chạy test thật trong trình duyệt, 3 bài viết file cấu hình và 25 bài ASP.NET Core chấm theo tiêu chí
+- Mạch Node.js bám theo khoá [Backend Full Course](https://youtu.be/9BD9eK9VqXA) của Smoljames: internet → Express → SQLite → JWT → PostgreSQL với Prisma → Docker
+- Lộ trình 5 giai đoạn có checklist, từ điển 71 thuật ngữ, bảng phiên bản thư viện
+- 17 integration test cho API, 821 test cho ngân hàng bài tập
 
 ---
 
@@ -53,8 +54,8 @@ npm run test:api       # 17 integration test cho API
 │   ├── assets/styles.css
 │   ├── data/                      NỘI DUNG — server và trình duyệt dùng chung
 │   │   ├── index.js               gom tất cả thành một điểm nhập
-│   │   ├── theory/                15 chương, chia ba file
-│   │   ├── exercises/             node.js và dotnet.js
+│   │   ├── theory/                26 chương; thứ tự học do ORDER trong index.js quyết định
+│   │   ├── exercises/             node*.js và dotnet.js
 │   │   └── reference/             glossary, roadmap, libraries
 │   └── js/
 │       ├── main.js                điểm vào: khởi động, đăng ký route
