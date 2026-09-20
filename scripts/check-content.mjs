@@ -14,6 +14,21 @@ for (const exercise of EXERCISES) {
   if (!exercise.title || !exercise.brief || !exercise.starter || !exercise.solution) {
     problems.push(`${exercise.id}: thiếu trường bắt buộc`);
   }
+  // Mọi bài đều phải nói rõ đầu vào: bài Node mô tả chữ ký hàm, bài .NET liệt
+  // kê những kiểu đã có sẵn. Thiếu phần này là người học phải ngồi đoán.
+  if (!exercise.io) {
+    problems.push(`${exercise.id}: thiếu phần mô tả đầu vào (io)`);
+  } else if (exercise.lang === 'node') {
+    if (!exercise.io.signature) problems.push(`${exercise.id}: io thiếu signature`);
+    if (!exercise.io.params?.length) problems.push(`${exercise.id}: io thiếu danh sách tham số`);
+    if (!exercise.io.returns) problems.push(`${exercise.id}: io thiếu mô tả giá trị trả về`);
+    for (const param of exercise.io.params ?? []) {
+      if (param.length !== 3) problems.push(`${exercise.id}: tham số io phải đủ [tên, kiểu, mô tả]`);
+    }
+  } else if (!exercise.io.given && !exercise.io.note) {
+    problems.push(`${exercise.id}: io của bài .NET cần given hoặc note`);
+  }
+
   if (exercise.lang === 'node' && (!exercise.fn || !exercise.tests?.length)) {
     problems.push(`${exercise.id}: bài Node.js phải có fn và tests`);
   }

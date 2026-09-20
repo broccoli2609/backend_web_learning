@@ -4,6 +4,20 @@ export default [
 {
   id: 'net-01', lang: 'dotnet', level: 'Cơ bản', topic: 'Controller',
   title: 'Controller CRUD cơ bản',
+  io: {
+    given: `public interface IProductService
+{
+    Task<IEnumerable<ProductDto>> ListAsync();
+    Task<ProductDto?> GetByIdAsync(int id);                 // null = không tìm thấy
+    Task<ProductDto> CreateAsync(CreateProductDto dto);
+    Task<bool> UpdateAsync(int id, UpdateProductDto dto);   // false = không tìm thấy
+    Task<bool> DeleteAsync(int id);                         // false = không tìm thấy
+}
+
+public record ProductDto(int Id, string Name, decimal Price, string Sku);
+public record CreateProductDto(string Name, decimal Price, string Sku);
+public record UpdateProductDto(string Name, decimal Price);`
+  },
   brief: `<p>Viết <code>ProductsController</code> với đủ 5 endpoint CRUD, dùng <code>IProductService</code> được tiêm qua constructor.</p>
 <ul>
 <li><code>GET /api/products</code> — danh sách</li>
@@ -68,6 +82,20 @@ public class ProductsController(IProductService service) : ControllerBase
 {
   id: 'net-02', lang: 'dotnet', level: 'Cơ bản', topic: 'Controller',
   title: 'Trả đúng status code',
+  io: {
+    given: `public interface IOrderService
+{
+    Task<OrderDto> CreateAsync(int userId, CreateOrderDto dto);
+    Task<OrderDto?> GetByIdAsync(int id);
+}
+
+public record CreateOrderDto(int ProductId, int Quantity);
+public record OrderDto(int Id, int ProductId, int Quantity, decimal Total);
+
+public class NotFoundException(string message) : Exception(message);
+public class OutOfStockException(string message) : Exception(message);`,
+    note: 'Trong controller đã có sẵn: trường service (IOrderService), action GetById(int id) để CreatedAtAction trỏ tới, và extension method User.GetUserId() trả về int id của người đang đăng nhập.'
+  },
   brief: `<p>Viết action <code>Create</code> cho <code>OrdersController</code> trả về status code chính xác cho từng tình huống:</p>
 <ul>
 <li>Tạo thành công → <strong>201</strong> kèm header <code>Location</code></li>
@@ -112,6 +140,19 @@ public async Task<ActionResult<OrderDto>> Create(CreateOrderDto dto)
 {
   id: 'net-03', lang: 'dotnet', level: 'Cơ bản', topic: 'Kiến trúc',
   title: 'DTO và mapping',
+  io: {
+    given: `public class User
+{
+    public int Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;   // không được lộ ra API
+    public DateTime CreatedAt { get; set; }
+    public DateTime? DeletedAt { get; set; }                   // không được lộ ra API
+    public string? InternalNote { get; set; }                  // không được lộ ra API
+}`,
+    note: 'Đề bài chỉ cho sẵn entity User. UserDto, CreateUserDto và lớp UserMappings là phần bạn tự khai báo.'
+  },
   brief: `<p>Cho entity <code>User</code> có <code>Id, Email, FullName, PasswordHash, CreatedAt, DeletedAt, InternalNote</code>.</p>
 <p>Hãy định nghĩa:</p>
 <ul>
@@ -147,6 +188,9 @@ public static class UserMappings
 {
   id: 'net-04', lang: 'dotnet', level: 'Cơ bản', topic: 'Validation',
   title: 'Validation bằng Data Annotations',
+  io: {
+    note: 'Không có kiểu nào cho sẵn — bạn khai báo trọn lớp CreateProductDto từ đầu. Controller đã có [ApiController], nên ModelState được kiểm tra tự động; đó chính là điều cần giải thích ở cuối bài. Các attribute cần dùng nằm trong namespace System.ComponentModel.DataAnnotations.'
+  },
   brief: `<p>Viết <code>CreateProductDto</code> với ràng buộc đầy đủ và thông điệp lỗi tiếng Việt:</p>
 <ul>
 <li><code>Name</code>: bắt buộc, 3–100 ký tự</li>
@@ -194,6 +238,18 @@ public static class UserMappings
 {
   id: 'net-05', lang: 'dotnet', level: 'Trung bình', topic: 'DI',
   title: 'Đăng ký DI đúng vòng đời',
+  io: {
+    given: `// Các kiểu dưới đây đã tồn tại, bạn chỉ viết phần đăng ký:
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options);
+
+public interface IOrderRepository;    public class EfOrderRepository : IOrderRepository;
+public interface IOrderService;       public class OrderService : IOrderService;
+public interface IPriceCalculator;    public class PriceCalculator : IPriceCalculator;
+public interface ICacheProvider;      public class MemoryCacheProvider : ICacheProvider;
+
+// appsettings.json đã có:
+// "ConnectionStrings": { "Default": "Host=localhost;Database=shop;..." }`
+  },
   brief: `<p>Viết phần đăng ký dịch vụ trong <code>Program.cs</code> cho các thành phần sau, chọn đúng vòng đời cho từng cái và giải thích lý do bằng comment:</p>
 <ul>
 <li><code>AppDbContext</code> — EF Core, nối PostgreSQL</li>
@@ -238,6 +294,18 @@ var app = builder.Build();`
 {
   id: 'net-06', lang: 'dotnet', level: 'Trung bình', topic: 'Kiến trúc',
   title: 'Repository pattern',
+  io: {
+    given: `public class Order
+{
+    public int Id { get; set; }
+    public int CustomerId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public List<OrderItem> Items { get; set; } = [];
+}
+
+// AppDbContext đã có sẵn, trong đó có DbSet<Order> Orders.
+// Biến db được tiêm qua primary constructor của EfOrderRepository.`
+  },
   brief: `<p>Định nghĩa <code>IOrderRepository</code> và cài đặt <code>EfOrderRepository</code> dùng <code>AppDbContext</code>.</p>
 <p>Interface cần các phương thức: <code>GetByIdAsync</code>, <code>ListByCustomerAsync</code> (có phân trang), <code>AddAsync</code>, <code>SaveChangesAsync</code>.</p>
 <p>Yêu cầu: interface không được lộ bất kỳ kiểu nào của EF Core (<code>IQueryable</code>, <code>DbSet</code>) ra ngoài.</p>`,
@@ -289,6 +357,36 @@ public class EfOrderRepository(AppDbContext db) : IOrderRepository
 {
   id: 'net-07', lang: 'dotnet', level: 'Trung bình', topic: 'EF Core',
   title: 'DbContext và cấu hình quan hệ',
+  io: {
+    given: `public class Order
+{
+    public int Id { get; set; }
+    public int CustomerId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public List<OrderItem> Items { get; set; } = [];
+}
+
+public class OrderItem
+{
+    public int Id { get; set; }
+    public int OrderId { get; set; }
+    public Order Order { get; set; } = null!;
+    public int ProductId { get; set; }
+    public Product Product { get; set; } = null!;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
+public class Product
+{
+    public int Id { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int Stock { get; set; }
+    public int CategoryId { get; set; }
+}`
+  },
   brief: `<p>Viết <code>AppDbContext</code> cho ba entity: <code>Order</code>, <code>OrderItem</code>, <code>Product</code>.</p>
 <ul>
 <li>Một <code>Order</code> có nhiều <code>OrderItem</code> (1–n), xoá đơn thì xoá luôn item</li>
@@ -344,6 +442,17 @@ public class EfOrderRepository(AppDbContext db) : IOrderRepository
 {
   id: 'net-08', lang: 'dotnet', level: 'Trung bình', topic: 'EF Core',
   title: 'Truy vấn phân trang có tổng số',
+  io: {
+    given: `public record ProductQuery(int Page, int Size, int? CategoryId, string? Keyword, bool SortDesc);
+
+public record ProductDto(int Id, string Name, decimal Price, string Sku);
+
+public record PagedResult<T>(IReadOnlyList<T> Items, int Page, int Size, int Total, int TotalPages);
+
+// Product: Id, Name, Price, Sku, Stock, CategoryId
+// db (AppDbContext) đã được tiêm qua constructor của service.`,
+    note: 'query.Page có thể nhỏ hơn 1, query.Size có thể là 0 hoặc 5000 — cả hai phải được kẹp lại. CategoryId và Keyword đều có thể null, nghĩa là không lọc theo tiêu chí đó.'
+  },
   brief: `<p>Viết phương thức <code>ListAsync</code> trả về <code>PagedResult&lt;ProductDto&gt;</code> gồm <code>Items, Page, Size, Total, TotalPages</code>.</p>
 <ul>
 <li>Lọc tuỳ chọn theo <code>categoryId</code> và từ khoá trong tên</li>
@@ -398,6 +507,18 @@ public class EfOrderRepository(AppDbContext db) : IOrderRepository
 {
   id: 'net-09', lang: 'dotnet', level: 'Trung bình', topic: 'EF Core',
   title: 'Diệt N+1 query',
+  io: {
+    given: `// Các entity đang dùng:
+// Order:     Id, CustomerId, Customer, Items (List<OrderItem>), CreatedAt
+// Customer:  Id, FullName
+// OrderItem: Id, OrderId, ProductId, Product, Quantity
+// Product:   Id, Name, Price
+
+public record OrderDto(int Id, string CustomerName, List<OrderItemDto> Items);
+public record OrderItemDto(int ProductId, string ProductName, int Quantity);
+
+// db (AppDbContext), customerId (int) và ct (CancellationToken) đều đã có sẵn.`
+  },
   brief: `<p>Đoạn code dưới đây sinh ra N+1 query. Hãy viết lại cho đúng và giải thích ngắn gọn số truy vấn trước và sau khi sửa.</p>
 <pre><code>var orders = await db.Orders
     .Where(o =&gt; o.CustomerId == customerId)
@@ -450,6 +571,21 @@ var dtos = await db.Orders
 {
   id: 'net-10', lang: 'dotnet', level: 'Nâng cao', topic: 'EF Core',
   title: 'Transaction nhiều bảng',
+  io: {
+    given: `public record CreateOrderDto(int ProductId, int Quantity);
+public record OrderDto(int Id, int ProductId, int Quantity, decimal Total);
+
+public class NotFoundException(string message) : Exception(message);
+public class OutOfStockException(string message) : Exception(message);
+
+// Product:       Id, Name, Price, Stock
+// Order:         Id, CustomerId, Items (List<OrderItem>), CreatedAt
+// OrderItem:     Id, OrderId, ProductId, Quantity, UnitPrice
+// StockMovement: Id, ProductId, Delta (int), Reason (string), CreatedAt
+
+// db (AppDbContext) có: Products, Orders, StockMovements
+// Extension order.ToDto() đã có sẵn.`
+  },
   brief: `<p>Viết <code>PlaceOrderAsync</code> thực hiện đặt hàng trong một transaction:</p>
 <ol>
 <li>Kiểm tra sản phẩm tồn tại và đủ tồn kho</li>
@@ -509,6 +645,18 @@ var dtos = await db.Orders
 {
   id: 'net-11', lang: 'dotnet', level: 'Trung bình', topic: 'Xử lý lỗi',
   title: 'Middleware xử lý lỗi toàn cục',
+  io: {
+    given: `public class ValidationException(string message) : Exception(message);
+public class NotFoundException(string message) : Exception(message);
+public class OutOfStockException(string message) : Exception(message);
+
+// Tham số của TryHandleAsync:
+//   context    HttpContext         ghi status code và body vào context.Response
+//   exception  Exception           lỗi vừa xảy ra: một trong ba kiểu trên, hoặc kiểu bất kỳ
+//   ct         CancellationToken
+// Trả về true nghĩa là đã xử lý xong, pipeline dừng tại đây.
+// logger (ILogger<GlobalExceptionHandler>) được tiêm qua primary constructor.`
+  },
   brief: `<p>Viết một <code>IExceptionHandler</code> chuyển exception thành <code>ProblemDetails</code> thống nhất, và đăng ký nó trong <code>Program.cs</code>.</p>
 <ul>
 <li><code>ValidationException</code> → 422</li>
@@ -573,6 +721,16 @@ app.UseExceptionHandler();`
 {
   id: 'net-12', lang: 'dotnet', level: 'Nâng cao', topic: 'Bảo mật',
   title: 'Cấu hình JWT authentication',
+  io: {
+    given: `// appsettings.json đã có:
+// "Jwt": { "Issuer": "shop-api", "Audience": "shop-web", "Key": "chuoi-bi-mat-dai" }
+
+// User: Id, Email, Roles (List<string>)
+
+// Bạn viết hai phần:
+//   1. builder.Services.AddAuthentication(...) trong Program.cs
+//   2. string CreateAccessToken(User user) sinh chuỗi JWT`
+  },
   brief: `<p>Viết phần cấu hình JWT Bearer trong <code>Program.cs</code> và một phương thức sinh token.</p>
 <ul>
 <li>Kiểm tra issuer, audience, thời hạn và chữ ký — không bỏ qua bất kỳ mục nào</li>
@@ -645,6 +803,18 @@ public string GenerateAccessToken(User user)
 {
   id: 'net-13', lang: 'dotnet', level: 'Trung bình', topic: 'Bảo mật',
   title: 'Phân quyền theo role và policy',
+  io: {
+    given: `// OrdersController đã có sẵn bốn action:
+//   GetAll()          danh sách mọi đơn
+//   GetMyOrders()     đơn của chính người đang đăng nhập
+//   Delete(int id)    xoá đơn
+//   Refund(int id)    hoàn tiền
+
+// Claim có trong token: role (có thể nhiều), department (ví dụ "finance")
+
+// Bạn viết: các attribute [Authorize] đặt trên controller và trên từng action,
+// cùng phần builder.Services.AddAuthorization(...) đăng ký policy CanRefund.`
+  },
   brief: `<p>Cấu hình phân quyền cho <code>OrdersController</code>:</p>
 <ul>
 <li>Toàn bộ controller yêu cầu đăng nhập</li>
@@ -712,6 +882,18 @@ public class OrdersController(IOrderService service) : ControllerBase
 {
   id: 'net-14', lang: 'dotnet', level: 'Trung bình', topic: 'Bảo mật',
   title: 'Chặn IDOR trong service',
+  io: {
+    given: `public interface IOrderService
+{
+    Task<Order?> GetByIdAsync(int id);
+}
+
+// Order: Id, CustomerId (int — id của chủ đơn), Total, CreatedAt
+// Claim trong token: NameIdentifier (hoặc sub) chứa id người dùng, role chứa vai trò
+
+// Bạn viết: action GetById đã sửa, và extension method
+//   public static int GetUserId(this ClaimsPrincipal user)`
+  },
   brief: `<p>Action dưới đây có lỗ hổng IDOR: người dùng đã đăng nhập chỉ cần đổi id trên URL là xem được đơn của người khác.</p>
 <pre><code>[HttpGet("{id:int}")]
 [Authorize]
@@ -772,6 +954,25 @@ public static class ClaimsPrincipalExtensions
 {
   id: 'net-15', lang: 'dotnet', level: 'Trung bình', topic: 'Bảo mật',
   title: 'Đăng ký và đăng nhập an toàn',
+  io: {
+    given: `public interface ITokenService
+{
+    string CreateAccessToken(User user);
+    string CreateRefreshToken(User user);
+}
+
+public record RegisterDto(string Email, string FullName, string Password);
+public record LoginDto(string Email, string Password);
+public record AuthResult(string AccessToken, string RefreshToken);
+
+public class ConflictException(string message) : Exception(message);
+
+// User: Id, Email, FullName, PasswordHash, CreatedAt
+// db (AppDbContext) có DbSet<User> Users
+// hasher (IPasswordHasher<User>) có:
+//   HashPassword(user, password) -> string
+//   VerifyHashedPassword(user, hash, password) -> PasswordVerificationResult`
+  },
   brief: `<p>Viết <code>AuthService</code> với hai phương thức <code>RegisterAsync</code> và <code>LoginAsync</code>.</p>
 <ul>
 <li>Mật khẩu băm bằng <code>IPasswordHasher&lt;User&gt;</code> của ASP.NET Core</li>
@@ -846,6 +1047,22 @@ public static class ClaimsPrincipalExtensions
 {
   id: 'net-16', lang: 'dotnet', level: 'Trung bình', topic: 'Minimal API',
   title: 'Nhóm endpoint Minimal API',
+  io: {
+    given: `public interface IProductService
+{
+    Task<IEnumerable<ProductDto>> ListAsync();
+    Task<ProductDto?> GetByIdAsync(int id);
+    Task<ProductDto> CreateAsync(CreateProductDto dto);
+    Task<bool> UpdateAsync(int id, UpdateProductDto dto);
+    Task<bool> DeleteAsync(int id);
+}
+
+public record ProductDto(int Id, string Name, decimal Price, string Sku);
+public record CreateProductDto(string Name, decimal Price, string Sku);
+public record UpdateProductDto(string Name, decimal Price);
+
+// Minimal API lấy service qua tham số của handler (DI tự động), không cần constructor.`
+  },
   brief: `<p>Viết lại <code>ProductsController</code> thành Minimal API dùng <code>MapGroup</code>.</p>
 <ul>
 <li>Tất cả endpoint nằm dưới <code>/api/products</code></li>
@@ -911,6 +1128,17 @@ app.MapProductEndpoints();`
 {
   id: 'net-17', lang: 'dotnet', level: 'Trung bình', topic: 'Hiệu năng',
   title: 'Cache cho endpoint đọc nhiều',
+  io: {
+    given: `public record CategoryDto(int Id, string Name);
+
+// Category: Id, Name
+// db (AppDbContext) có DbSet<Category> Categories
+// cache (IMemoryCache) được tiêm qua primary constructor
+
+// Bạn viết các phương thức:
+//   Task<IReadOnlyList<CategoryDto>> ListAsync()
+//   CreateAsync(...), UpdateAsync(...), DeleteAsync(...) — mỗi cái phải xoá cache`
+  },
   brief: `<p>Endpoint danh sách danh mục được gọi rất nhiều nhưng dữ liệu hiếm khi đổi. Hãy thêm cache bằng <code>IMemoryCache</code>.</p>
 <ul>
 <li>Cache 10 phút, đồng thời đặt <code>SlidingExpiration</code> 2 phút</li>
@@ -985,6 +1213,27 @@ app.MapProductEndpoints();`
 {
   id: 'net-18', lang: 'dotnet', level: 'Nâng cao', topic: 'Công việc nền',
   title: 'BackgroundService gửi email',
+  io: {
+    given: `public class OutboxEmail
+{
+    public int Id { get; set; }
+    public string To { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string Status { get; set; } = "Pending";   // Pending | Sent | Failed
+    public int RetryCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public interface IEmailSender
+{
+    Task SendAsync(string to, string subject, string body, CancellationToken ct);
+}
+
+// Tiêm qua primary constructor: IServiceScopeFactory scopeFactory,
+//                               ILogger<EmailSenderService> logger
+// AppDbContext chỉ lấy được BÊN TRONG một scope do scopeFactory tạo ra.`
+  },
   brief: `<p>Viết một <code>BackgroundService</code> lấy email đang chờ trong bảng <code>OutboxEmail</code> và gửi đi.</p>
 <ul>
 <li>Chạy mỗi 30 giây, mỗi lượt lấy tối đa 20 email</li>
@@ -1067,6 +1316,9 @@ app.MapProductEndpoints();`
 {
   id: 'net-19', lang: 'dotnet', level: 'Trung bình', topic: 'Bảo mật',
   title: 'Rate limiting cho endpoint đăng nhập',
+  io: {
+    note: 'Không có kiểu nào cho sẵn. Bạn viết hai phần trong Program.cs: builder.Services.AddRateLimiter(...) khai báo hai policy, và app.UseRateLimiter(). Endpoint đăng nhập đã tồn tại ở POST /api/auth/login — việc của bạn là gắn policy "login" vào nó bằng RequireRateLimiting.'
+  },
   brief: `<p>Dùng rate limiting có sẵn của ASP.NET Core để bảo vệ endpoint đăng nhập.</p>
 <ul>
 <li>Policy <code>"login"</code>: tối đa 5 lần trong 1 phút, phân theo địa chỉ IP</li>
@@ -1128,6 +1380,16 @@ public async Task<IActionResult> Login(LoginDto dto) => Ok(await auth.LoginAsync
 {
   id: 'net-20', lang: 'dotnet', level: 'Cơ bản', topic: 'Vận hành',
   title: 'Health check',
+  io: {
+    given: `// appsettings.json đã có:
+// "ConnectionStrings": { "Default": "Host=localhost;...", "Redis": "localhost:6379" }
+
+// AppDbContext đã được đăng ký trong DI.
+// Package gợi ý: AspNetCore.HealthChecks.NpgSql, AspNetCore.HealthChecks.Redis
+
+// Bạn viết trong Program.cs: builder.Services.AddHealthChecks()...
+// và hai lệnh app.MapHealthChecks(...) cho /health/live và /health/ready.`
+  },
   brief: `<p>Cấu hình health check cho ứng dụng:</p>
 <ul>
 <li><code>/health/live</code> — chỉ kiểm tra tiến trình còn sống, <strong>không</strong> chạm database</li>
@@ -1180,6 +1442,9 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
   id: 'net-21', lang: 'dotnet', level: 'Trung bình', topic: 'Vận hành',
   title: 'Serilog và traceId',
+  io: {
+    note: 'Không có kiểu nào cho sẵn. Bạn viết ba phần: cấu hình Serilog trong Program.cs (khác nhau giữa Development và Production), một middleware đẩy traceId và userId vào LogContext, và phần ghi traceId vào header response. traceId lấy từ Activity.Current?.Id ?? context.TraceIdentifier; userId lấy từ context.User khi đã đăng nhập.'
+  },
   brief: `<p>Cấu hình Serilog cho ứng dụng và viết middleware gắn <code>traceId</code> vào mọi log của cùng một request.</p>
 <ul>
 <li>Log ra console dạng JSON khi ở môi trường Production, dạng dễ đọc khi Development</li>
@@ -1249,6 +1514,24 @@ public class RequestContextMiddleware(RequestDelegate next)
 {
   id: 'net-22', lang: 'dotnet', level: 'Trung bình', topic: 'Kiểm thử',
   title: 'Unit test cho service',
+  io: {
+    given: `public class DiscountService
+{
+    public decimal Calculate(Order order);   // trả về TỶ LỆ giảm, ví dụ 0.05m
+}
+
+public class Order
+{
+    public decimal Total { get; set; }         // tổng tiền trước giảm, đơn vị đồng
+    public Customer Customer { get; set; } = null!;
+}
+
+public class Customer
+{
+    public bool IsVip { get; set; }
+}`,
+    note: 'Bạn không viết DiscountService — bạn viết test cho nó. Các mốc cần phủ: 499.999 / 500.000 / 1.999.999 / 2.000.000, mỗi mốc với cả khách thường lẫn khách VIP.'
+  },
   brief: `<p>Viết unit test bằng xUnit cho <code>DiscountService.Calculate(order)</code> với quy tắc:</p>
 <ul>
 <li>Đơn dưới 500.000đ: không giảm</li>
@@ -1326,6 +1609,20 @@ public class RequestContextMiddleware(RequestDelegate next)
 {
   id: 'net-23', lang: 'dotnet', level: 'Nâng cao', topic: 'Kiểm thử',
   title: 'Integration test với WebApplicationFactory',
+  io: {
+    given: `public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+{
+    // Bạn viết ConfigureWebHost để thay database thật bằng database test
+}
+
+public record CreateProductDto(string Name, decimal Price, string Sku);
+
+// API đang test:
+//   GET  /api/products        công khai
+//   GET  /api/products/{id}   công khai, trả 404 khi không có
+//   POST /api/products        yêu cầu token, trả 400 khi dto sai
+// AppDbContext đang được đăng ký bằng AddDbContext<AppDbContext>(...UseNpgsql...)`
+  },
   brief: `<p>Viết integration test cho <code>ProductsController</code> dùng <code>WebApplicationFactory</code>.</p>
 <ul>
 <li>Thay database thật bằng database test (in-memory hoặc SQLite in-memory)</li>
@@ -1427,6 +1724,17 @@ public class ProductsApiTests(CustomWebApplicationFactory factory)
 {
   id: 'net-24', lang: 'dotnet', level: 'Trung bình', topic: 'EF Core',
   title: 'Migration và seed dữ liệu',
+  io: {
+    given: `// Category: Id, Name
+// User:     Id, Email, FullName, PasswordHash, Roles (List<string>)
+
+// Tiêm vào DatabaseSeeder qua tham số: AppDbContext db,
+//   IPasswordHasher<User> hasher, IConfiguration config
+// Mật khẩu admin nằm ở config["Seed:AdminPassword"]
+
+// Bạn viết: Task SeedAsync(...) và phần gọi nó trong Program.cs
+// (chỉ chạy migration tự động khi app.Environment.IsDevelopment()).`
+  },
   brief: `<p>Viết phần seed dữ liệu ban đầu cho ứng dụng:</p>
 <ul>
 <li>Ba danh mục mặc định và một tài khoản admin</li>
@@ -1509,6 +1817,13 @@ await DatabaseSeeder.SeedAsync(app.Services);
 {
   id: 'net-25', lang: 'dotnet', level: 'Cơ bản', topic: 'Cấu hình',
   title: 'CORS và cấu hình theo môi trường',
+  io: {
+    given: `// appsettings.Production.json đã có:
+// "Cors": { "AllowedOrigins": [ "https://shop.example.com" ] }
+
+// Bạn viết trong Program.cs: builder.Services.AddCors(...) với policy khác nhau
+// theo builder.Environment, và app.UseCors(...) đặt đúng chỗ trong pipeline.`
+  },
   brief: `<p>Cấu hình CORS đúng cách cho hai môi trường:</p>
 <ul>
 <li>Development: cho phép <code>http://localhost:5173</code> và <code>http://localhost:3000</code></li>

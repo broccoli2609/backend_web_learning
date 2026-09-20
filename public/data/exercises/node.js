@@ -4,6 +4,21 @@ export default [
 {
   id: 'node-01', lang: 'node', level: 'Cơ bản', topic: 'HTTP', fn: 'statusFor',
   title: 'Chọn đúng status code',
+  io: {
+    signature: 'statusFor(action, ctx) → number',
+    params: [
+      ['action', 'string',
+       'Tên tình huống. Một trong: "created", "deleted", "ok", "notFound", "invalid", "auth". Có thể là bất kỳ chuỗi nào khác — khi đó rơi vào nhánh mặc định.'],
+      ['ctx', 'object · tuỳ chọn',
+       'Thông tin thêm về request. Chỉ dùng khi action là "auth". Có một trường: hasToken (boolean) — client có gửi token hay không.']
+    ],
+    returns: ['number',
+      'Status code HTTP, ví dụ 201.'],
+    example: `statusFor('created')                    // → 201
+statusFor('auth', { hasToken: false })  // → 401
+statusFor('auth', { hasToken: true })   // → 403
+statusFor('linh tinh')                  // → 500`
+  },
   brief: `<p>Viết hàm <code>statusFor(action, ctx)</code> trả về status code phù hợp cho từng tình huống.</p>
 <ul>
 <li><code>'created'</code> → 201</li>
@@ -37,6 +52,18 @@ export default [
 {
   id: 'node-02', lang: 'node', level: 'Cơ bản', topic: 'HTTP', fn: 'parseQuery',
   title: 'Đọc query string',
+  io: {
+    signature: 'parseQuery(qs) → object',
+    params: [
+      ['qs', 'string | undefined',
+       'Phần query của URL, KHÔNG có dấu ? ở đầu. Ví dụ: "page=2&tag=a&tag=b". Có thể là chuỗi rỗng hoặc undefined.']
+    ],
+    returns: ['object',
+      'Khoá là tên tham số. Giá trị là chuỗi, hoặc mảng chuỗi khi một khoá xuất hiện nhiều lần.'],
+    example: `parseQuery('page=2&size=20')   // → { page: '2', size: '20' }
+parseQuery('tag=a&tag=b')      // → { tag: ['a', 'b'] }
+parseQuery('active')           // → { active: '' }`
+  },
   brief: `<p>Viết hàm <code>parseQuery(qs)</code> nhận chuỗi query (không có dấu <code>?</code> đầu) và trả về object.</p>
 <ul>
 <li>Chuỗi rỗng hoặc <code>undefined</code> → <code>{}</code></li>
@@ -74,6 +101,19 @@ export default [
 {
   id: 'node-03', lang: 'node', level: 'Cơ bản', topic: 'Phân trang', fn: 'buildPagination',
   title: 'Tính tham số phân trang',
+  io: {
+    signature: 'buildPagination(query, total) → object',
+    params: [
+      ['query', 'object · mặc định {}',
+       'Chính là req.query của Express, nên MỌI giá trị đều là chuỗi. Hai khoá quan tâm: page và size. Cả hai đều có thể thiếu, rỗng, âm, hoặc là chữ.'],
+      ['total', 'number · mặc định 0',
+       'Tổng số bản ghi trong database, đã đếm sẵn.']
+    ],
+    returns: ['object',
+      '{ page, size, skip, take, totalPages } là number; { hasNext, hasPrev } là boolean.'],
+    example: `buildPagination({ page: '3', size: '10' }, 100)
+// → { page: 3, size: 10, skip: 20, take: 10, totalPages: 10, hasNext: true, hasPrev: true }`
+  },
   brief: `<p>Viết hàm <code>buildPagination(query, total)</code> trả về <code>{ page, size, skip, take, totalPages, hasNext, hasPrev }</code>.</p>
 <ul>
 <li><code>page</code> mặc định 1, nhỏ nhất 1</li>
@@ -105,6 +145,19 @@ export default [
 {
   id: 'node-04', lang: 'node', level: 'Trung bình', topic: 'Routing', fn: 'matchRoute',
   title: 'So khớp route có tham số',
+  io: {
+    signature: 'matchRoute(pattern, path) → object | null',
+    params: [
+      ['pattern', 'string',
+       'Mẫu route kiểu Express. Đoạn bắt đầu bằng dấu hai chấm là tham số. Ví dụ: "/users/:id/orders/:orderId".'],
+      ['path', 'string',
+       'Đường dẫn thật của request, ví dụ "/users/7/orders/42".']
+    ],
+    returns: ['object | null',
+      'Khớp thì trả object tham số (giá trị LUÔN là chuỗi). Không khớp thì trả null — chứ không phải object rỗng.'],
+    example: `matchRoute('/users/:id', '/users/42')   // → { id: '42' }
+matchRoute('/users/:id', '/posts/42')   // → null`
+  },
   brief: `<p>Viết hàm <code>matchRoute(pattern, path)</code> so khớp đường dẫn với mẫu có tham số kiểu Express.</p>
 <ul>
 <li>Khớp → trả về object các tham số, ví dụ <code>{ id: '42' }</code></li>
@@ -139,6 +192,17 @@ export default [
 {
   id: 'node-05', lang: 'node', level: 'Cơ bản', topic: 'Kiến trúc', fn: 'toUserDto',
   title: 'Chuyển entity thành DTO',
+  io: {
+    signature: 'toUserDto(user) → object | null',
+    params: [
+      ['user', 'object | null | undefined',
+       'Entity lấy từ database. Chắc chắn có: id (number), email (string), name (string, có thể rỗng), role (string). Ngoài ra còn nhiều trường khác không được lộ ra API: passwordHash, deletedAt, internalNote… Danh sách trường thừa này không cố định.']
+    ],
+    returns: ['object | null',
+      'DTO gồm đúng 5 trường: id, email, name, role, displayName. user là null hoặc undefined thì trả null.'],
+    example: `toUserDto({ id: 2, email: 'kiet@mail.com', name: '', role: 'admin', internalNote: 'vip' })
+// → { id: 2, email: 'kiet@mail.com', name: '', role: 'admin', displayName: 'kiet' }`
+  },
   brief: `<p>Viết hàm <code>toUserDto(user)</code> nhận entity và trả về DTO an toàn để gửi ra API.</p>
 <ul>
 <li>Giữ lại: <code>id</code>, <code>email</code>, <code>name</code>, <code>role</code></li>
@@ -164,6 +228,17 @@ export default [
 {
   id: 'node-06', lang: 'node', level: 'Trung bình', topic: 'Validation', fn: 'validateOrder',
   title: 'Validate đầu vào',
+  io: {
+    signature: 'validateOrder(body) → Array',
+    params: [
+      ['body', 'object · mặc định {}',
+       'req.body do client gửi lên, nên KHÔNG tin được kiểu gì cả: trường có thể thiếu, có thể là chuỗi thay vì số. Ba trường được kiểm tra: productId, quantity, note.']
+    ],
+    returns: ['Array',
+      'Mảng lỗi, mỗi phần tử là { field: string, error: string }. Hợp lệ thì trả mảng rỗng.'],
+    example: `validateOrder({ productId: '3', quantity: 2 })
+// → [{ field: 'productId', error: 'phải là số nguyên dương' }]`
+  },
   brief: `<p>Viết hàm <code>validateOrder(body)</code> trả về mảng lỗi, mỗi lỗi dạng <code>{ field, error }</code>. Hợp lệ → mảng rỗng.</p>
 <ul>
 <li><code>productId</code>: bắt buộc, số nguyên dương → lỗi <code>'phải là số nguyên dương'</code></li>
@@ -198,6 +273,19 @@ export default [
 {
   id: 'node-07', lang: 'node', level: 'Nâng cao', topic: 'Middleware', fn: 'runMiddlewares', async: true,
   title: 'Tự cài đặt middleware pipeline',
+  io: {
+    signature: 'await runMiddlewares(middlewares, ctx) → Promise<object>',
+    params: [
+      ['middlewares', 'Array<function>',
+       'Mảng hàm dạng (ctx, next). Có thể là hàm thường hoặc async. next là hàm không tham số, trả về Promise — middleware await nó để chạy tiếp middleware sau.'],
+      ['ctx', 'object · mặc định {}',
+       'Object dùng chung, truyền qua mọi middleware. Middleware được phép gắn thêm trường vào đây (ctx.user chẳng hạn).']
+    ],
+    returns: ['Promise<object>',
+      'Promise trả về chính ctx sau khi chạy xong. Middleware ném lỗi thì Promise reject với đúng lỗi đó.'],
+    example: `const mws = [async (c, next) => { c.user = 'kiet'; await next(); }];
+await runMiddlewares(mws, {})   // → { user: 'kiet' }`
+  },
   brief: `<p>Viết hàm <code>runMiddlewares(middlewares, ctx)</code> chạy dãy middleware theo đúng cách Express làm.</p>
 <ul>
 <li>Mỗi middleware có dạng <code>(ctx, next) =&gt; ...</code>, có thể là async</li>
@@ -249,6 +337,17 @@ try { await fn(mws, {}); return 'khong-nem'; } catch (e) { return e.message; }`,
 {
   id: 'node-08', lang: 'node', level: 'Cơ bản', topic: 'HTTP', fn: 'classifyMethod',
   title: 'Phân loại HTTP method',
+  io: {
+    signature: 'classifyMethod(method) → object',
+    params: [
+      ['method', 'string',
+       'Tên một HTTP method. Có thể viết thường ("put") hoặc HOA ("PUT"). Có thể là method lạ không nằm trong bảy method chuẩn.']
+    ],
+    returns: ['object',
+      'Đúng bốn trường: method (string, viết HOA), safe / idempotent / hasBody (boolean).'],
+    example: `classifyMethod('put')
+// → { method: 'PUT', safe: false, idempotent: true, hasBody: true }`
+  },
   brief: `<p>Viết hàm <code>classifyMethod(method)</code> phân loại một HTTP method theo ba tính chất đã học ở chương 1 bài 3.</p>
 
 <p>Hàm nhận vào <strong>một chuỗi</strong> và trả về <strong>một object gồm đúng bốn trường</strong>:</p>
@@ -292,6 +391,19 @@ try { await fn(mws, {}); return 'khong-nem'; } catch (e) { return e.message; }`,
 {
   id: 'node-09', lang: 'node', level: 'Trung bình', topic: 'Database', fn: 'attachCustomers',
   title: 'Gộp dữ liệu để tránh N+1',
+  io: {
+    signature: 'attachCustomers(orders, customers) → Array',
+    params: [
+      ['orders', 'Array<object> · mặc định []',
+       'Mỗi đơn chắc chắn có customerId (number). Các trường còn lại (id, total…) không cố định và phải giữ nguyên.'],
+      ['customers', 'Array<object> · mặc định []',
+       'Mỗi khách hàng có id (number) khớp với customerId của đơn. Có thể thiếu khách hàng mà đơn đang trỏ tới.']
+    ],
+    returns: ['Array',
+      'Mảng mới, đúng thứ tự cũ, mỗi phần tử có thêm trường customer (object hoặc null).'],
+    example: `attachCustomers([{ id: 1, customerId: 10 }], [{ id: 10, name: 'An' }])
+// → [{ id: 1, customerId: 10, customer: { id: 10, name: 'An' } }]`
+  },
   brief: `<p>Bạn có danh sách đơn hàng và danh sách khách hàng lấy trong <em>một</em> truy vấn. Viết hàm <code>attachCustomers(orders, customers)</code> gắn khách hàng vào từng đơn mà không lặp tìm kiếm.</p>
 <ul>
 <li>Mỗi đơn có <code>customerId</code>; kết quả thêm trường <code>customer</code></li>
@@ -322,6 +434,19 @@ return finds;`, expect: 0 }
 {
   id: 'node-10', lang: 'node', level: 'Trung bình', topic: 'Database', fn: 'buildQuery',
   title: 'Dựng điều kiện truy vấn an toàn',
+  io: {
+    signature: 'buildQuery(query, allowed) → object',
+    params: [
+      ['query', 'object · mặc định {}',
+       'req.query thô từ client — có thể chứa bất kỳ khoá nào, kể cả khoá nguy hiểm như isAdmin. Ba khoá điều khiển đặc biệt: page, size, sort. Giá trị đều là chuỗi.'],
+      ['allowed', 'Array<string> · mặc định []',
+       'Danh sách tên trường được phép lọc và sắp xếp. Khoá ngoài danh sách này phải bị bỏ qua hoàn toàn.']
+    ],
+    returns: ['object',
+      '{ where: object, orderBy: object }. orderBy luôn có đúng một khoá, giá trị là "asc" hoặc "desc".'],
+    example: `buildQuery({ category: 'book', isAdmin: 'true', sort: '-price' }, ['category', 'price'])
+// → { where: { category: 'book' }, orderBy: { price: 'desc' } }`
+  },
   brief: `<p>Viết hàm <code>buildQuery(query, allowed)</code> chuyển query string thành đối tượng truy vấn, chỉ chấp nhận các trường trong danh sách cho phép.</p>
 <p>Trả về <code>{ where, orderBy }</code>:</p>
 <ul>
@@ -361,6 +486,17 @@ return finds;`, expect: 0 }
 {
   id: 'node-11', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'decodeJwtPayload',
   title: 'Giải mã payload của JWT',
+  io: {
+    signature: 'decodeJwtPayload(token) → object | null',
+    params: [
+      ['token', 'string (hoặc bất kỳ)',
+       'Chuỗi JWT gồm ba phần ngăn bởi dấu chấm: header.payload.signature. Phần giữa là JSON đã mã hoá base64url. Đầu vào có thể là chuỗi rỗng, thiếu phần, hoặc null.']
+    ],
+    returns: ['object | null',
+      'Object đã parse từ payload. Token hỏng dưới bất kỳ dạng nào đều trả null, không ném lỗi.'],
+    example: `decodeJwtPayload('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3In0.abc')
+// → { sub: '7' }`
+  },
   brief: `<p>Viết hàm <code>decodeJwtPayload(token)</code> trả về payload đã parse, hoặc <code>null</code> nếu token không hợp lệ.</p>
 <ul>
 <li>Token gồm ba phần ngăn bởi dấu chấm; thiếu phần nào → <code>null</code></li>
@@ -392,6 +528,19 @@ return finds;`, expect: 0 }
 {
   id: 'node-12', lang: 'node', level: 'Cơ bản', topic: 'Bảo mật', fn: 'tokenState',
   title: 'Kiểm tra hạn của token',
+  io: {
+    signature: 'tokenState(payload, nowSeconds) → string',
+    params: [
+      ['payload', 'object | null',
+       'Payload đã giải mã từ JWT. Quan tâm hai trường: exp (number, thời điểm hết hạn tính bằng GIÂY) và nbf (number, tuỳ chọn, thời điểm bắt đầu có hiệu lực). Cả hai có thể thiếu hoặc sai kiểu.'],
+      ['nowSeconds', 'number',
+       'Thời điểm hiện tại, tính bằng GIÂY (không phải mili giây). Trong code thật là Math.floor(Date.now() / 1000).']
+    ],
+    returns: ['string',
+      'Đúng một trong bốn chuỗi: "invalid", "not_yet_valid", "expired", "valid".'],
+    example: `tokenState({ exp: 2000 }, 1000)             // → 'valid'
+tokenState({ exp: 5000, nbf: 2000 }, 1000)  // → 'not_yet_valid'`
+  },
   brief: `<p>Viết hàm <code>tokenState(payload, nowSeconds)</code> trả về một trong bốn chuỗi:</p>
 <ul>
 <li><code>'invalid'</code> — payload không phải object, hoặc thiếu <code>exp</code>, hoặc <code>exp</code> không phải số</li>
@@ -424,6 +573,21 @@ return finds;`, expect: 0 }
 {
   id: 'node-13', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'can',
   title: 'Kiểm tra quyền theo role',
+  io: {
+    signature: 'can(user, permission, roles) → boolean',
+    params: [
+      ['user', 'object | null',
+       'Người dùng hiện tại. Trường cần dùng: roles (mảng chuỗi tên role). user có thể là null, hoặc thiếu roles.'],
+      ['permission', 'string',
+       'Quyền cần kiểm tra, dạng "nhóm.hành_động". Ví dụ: "order.read", "user.delete".'],
+      ['roles', 'object · mặc định {}',
+       'Bảng tra: tên role → mảng quyền của role đó. Trong mảng quyền có thể xuất hiện "*" (tất cả) và "order.*" (mọi quyền trong nhóm order). Role của user có thể không có trong bảng này.']
+    ],
+    returns: ['boolean',
+      'true nếu bất kỳ role nào của user chứa quyền đang hỏi.'],
+    example: `can({ roles: ['manager'] }, 'order.refund', { manager: ['order.*'] })
+// → true`
+  },
   brief: `<p>Viết hàm <code>can(user, permission, roles)</code> trả về <code>true</code>/<code>false</code>.</p>
 <ul>
 <li><code>roles</code> là object ánh xạ tên role sang mảng quyền, ví dụ <code>{ admin: ['*'], staff: ['order.read'] }</code></li>
@@ -459,6 +623,19 @@ return finds;`, expect: 0 }
 {
   id: 'node-14', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'authorizeAccess',
   title: 'Chặn lỗ hổng IDOR',
+  io: {
+    signature: 'authorizeAccess(user, resource) → object',
+    params: [
+      ['user', 'object | null',
+       'Người đang gọi. Hai trường cần dùng: id (number) và role (string, "admin" là đặc biệt). null nghĩa là chưa đăng nhập.'],
+      ['resource', 'object | null | undefined',
+       'Tài nguyên được yêu cầu, lấy từ database. Trường cần dùng: ownerId (number) — id của chủ sở hữu. null hoặc undefined nghĩa là không tìm thấy.']
+    ],
+    returns: ['object',
+      '{ allowed: boolean, status: number }.'],
+    example: `authorizeAccess({ id: 7, role: 'user' }, { id: 1, ownerId: 5 })
+// → { allowed: false, status: 404 }`
+  },
   brief: `<p>Viết hàm <code>authorizeAccess(user, resource)</code> trả về <code>{ allowed, status }</code>.</p>
 <ul>
 <li><code>user</code> null → <code>{ allowed: false, status: 401 }</code></li>
@@ -489,6 +666,19 @@ return finds;`, expect: 0 }
 {
   id: 'node-15', lang: 'node', level: 'Trung bình', topic: 'Xử lý lỗi', fn: 'normalizeError',
   title: 'Chuẩn hoá body lỗi',
+  io: {
+    signature: 'normalizeError(err, traceId) → object',
+    params: [
+      ['err', 'object',
+       'Lỗi bắt được ở middleware cuối pipeline. KHÔNG có hình dạng cố định — có thể là Error thường, có thể là object tự đặt. Các trường có thể gặp: name (string), message (string), status (number), details (mảng), stack (string).'],
+      ['traceId', 'string · mặc định \'\'',
+       'Mã định danh request, gắn kèm để tra log.']
+    ],
+    returns: ['object',
+      '{ status: number, body: { type, message, details, traceId } }. details LUÔN là mảng, rỗng nếu không có.'],
+    example: `normalizeError({ status: 404, message: 'Không tìm thấy đơn hàng' }, 't2')
+// → { status: 404, body: { type: 'client_error', message: 'Không tìm thấy đơn hàng', details: [], traceId: 't2' } }`
+  },
   brief: `<p>Viết hàm <code>normalizeError(err, traceId)</code> chuyển mọi loại lỗi thành response thống nhất <code>{ status, body }</code>.</p>
 <p><code>body</code> có dạng <code>{ type, message, details, traceId }</code>, trong đó <code>details</code> là mảng (rỗng nếu không có).</p>
 <ul>
@@ -521,6 +711,22 @@ return finds;`, expect: 0 }
 {
   id: 'node-16', lang: 'node', level: 'Trung bình', topic: 'Hiệu năng', fn: 'createCache',
   title: 'Cache in-memory có TTL',
+  io: {
+    signature: 'createCache(ttlMs, now) → { get, set, del, size }',
+    params: [
+      ['ttlMs', 'number',
+       'Thời gian sống của mỗi mục, tính bằng mili giây.'],
+      ['now', 'function · mặc định Date.now',
+       'Hàm không tham số, trả về thời điểm hiện tại (number, mili giây). Test truyền hàm giả để tua thời gian mà không phải chờ thật.']
+    ],
+    returns: ['object',
+      'get(key) → giá trị hoặc undefined · set(key, value) → void · del(key) → void · size() → number.'],
+    example: `let t = 0;
+const c = createCache(1000, () => t);
+c.set('a', 1);
+t = 1500;
+c.get('a');   // → undefined (đã quá hạn)`
+  },
   brief: `<p>Viết hàm <code>createCache(ttlMs, now)</code> trả về object có <code>get(key)</code>, <code>set(key, value)</code>, <code>del(key)</code>, <code>size()</code>.</p>
 <ul>
 <li><code>now</code> là hàm trả về thời điểm hiện tại (mili giây) — để test không phải chờ thật</li>
@@ -559,6 +765,25 @@ return finds;`, expect: 0 }
 {
   id: 'node-17', lang: 'node', level: 'Nâng cao', topic: 'Hiệu năng', fn: 'createRateLimiter',
   title: 'Rate limiter cửa sổ trượt',
+  io: {
+    signature: 'createRateLimiter({ limit, windowMs, now }) → function check(key)',
+    params: [
+      ['limit', 'number',
+       'Số lượt tối đa cho mỗi key trong một cửa sổ.'],
+      ['windowMs', 'number',
+       'Độ dài cửa sổ trượt, tính bằng mili giây.'],
+      ['now', 'function · mặc định Date.now',
+       'Hàm trả về thời điểm hiện tại (number, mili giây).'],
+      ['key', 'string',
+       'Tham số của hàm check được trả về. Thường là địa chỉ IP hoặc id người dùng. Mỗi key đếm độc lập.']
+    ],
+    returns: ['function',
+      'Hàm check(key) trả về { allowed: boolean, remaining: number, retryAfterMs: number }.'],
+    example: `const check = createRateLimiter({ limit: 2, windowMs: 1000, now: () => 0 });
+check('a');   // → { allowed: true, remaining: 1, retryAfterMs: 0 }
+check('a');   // → { allowed: true, remaining: 0, retryAfterMs: 0 }
+check('a');   // → { allowed: false, remaining: 0, retryAfterMs: 1000 }`
+  },
   brief: `<p>Viết hàm <code>createRateLimiter({ limit, windowMs, now })</code> trả về hàm <code>check(key)</code>.</p>
 <p><code>check</code> trả về <code>{ allowed, remaining, retryAfterMs }</code>:</p>
 <ul>
@@ -600,6 +825,20 @@ l('a'); t = 500; l('a'); t = 1001; return l('a');`, expect: { allowed: true, rem
 {
   id: 'node-18', lang: 'node', level: 'Nâng cao', topic: 'Bất đồng bộ', fn: 'retry', async: true,
   title: 'Thử lại với backoff',
+  io: {
+    signature: 'await retry(task, { attempts, onRetry }) → Promise<any>',
+    params: [
+      ['task', 'function',
+       'Hàm không tham số, thường là async, trả về Promise. Có thể ném lỗi. Lỗi ném ra có thể mang thuộc tính fatal === true, nghĩa là đừng thử lại.'],
+      ['attempts', 'number · mặc định 3',
+       'Tổng số lần GỌI task, tính cả lần đầu. attempts 3 nghĩa là 1 lần đầu + 2 lần thử lại.'],
+      ['onRetry', 'function · tuỳ chọn',
+       'Gọi TRƯỚC mỗi lần thử lại với (attemptNumber, error). attemptNumber bắt đầu từ 1 cho lần thử lại đầu tiên.']
+    ],
+    returns: ['Promise<any>',
+      'Kết quả của task khi thành công. Hết lượt vẫn lỗi thì Promise reject với lỗi cuối cùng.'],
+    example: `await retry(async () => fetchUser(id), { attempts: 3, onRetry: (i, e) => console.log(i, e.message) })`
+  },
   brief: `<p>Viết hàm <code>retry(task, { attempts, onRetry })</code> gọi <code>task()</code> và thử lại khi nó ném lỗi.</p>
 <ul>
 <li>Thành công → trả về kết quả ngay</li>
@@ -642,6 +881,18 @@ return calls;`, expect: [1, 2] }
 {
   id: 'node-19', lang: 'node', level: 'Cơ bản', topic: 'Xử lý dữ liệu', fn: 'chunk',
   title: 'Chia mảng thành lô',
+  io: {
+    signature: 'chunk(items, size) → Array<Array>',
+    params: [
+      ['items', 'Array · mặc định []',
+       'Mảng cần chia. Phần tử kiểu gì cũng được.'],
+      ['size', 'number · mặc định 1',
+       'Số phần tử mỗi lô. Phải là số nguyên dương — 0, số âm hay 1.5 đều phải bị ném lỗi.']
+    ],
+    returns: ['Array<Array>',
+      'Mảng các lô. Lô cuối có thể ngắn hơn. Ném Error khi size không hợp lệ.'],
+    example: `chunk([1, 2, 3, 4, 5], 2)   // → [[1, 2], [3, 4], [5]]`
+  },
   brief: `<p>Viết hàm <code>chunk(items, size)</code> chia mảng thành các lô nhỏ — kỹ thuật cơ bản khi ghi hàng loạt vào database hoặc gọi API có giới hạn.</p>
 <ul>
 <li>Lô cuối có thể ít phần tử hơn</li>
@@ -670,6 +921,19 @@ return calls;`, expect: [1, 2] }
 {
   id: 'node-20', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'buildInsert',
   title: 'Sinh SQL tham số hoá',
+  io: {
+    signature: 'buildInsert(table, data) → { sql, values }',
+    params: [
+      ['table', 'string',
+       'Tên bảng. Tên bảng KHÔNG tham số hoá được nên phải tự kiểm tra: chỉ cho phép chữ, số và dấu gạch dưới.'],
+      ['data', 'object · mặc định {}',
+       'Cột → giá trị. Tên cột cũng phải kiểm tra như tên bảng. Giá trị thì ngược lại: không kiểm tra gì cả, vì chúng đi qua mảng values nên an toàn.']
+    ],
+    returns: ['object',
+      '{ sql: string, values: Array }. Thứ tự cột theo thứ tự khoá trong data. Ném Error khi tên sai hoặc data rỗng.'],
+    example: `buildInsert('users', { email: 'a@b.com', age: 30 })
+// → { sql: 'INSERT INTO users (email, age) VALUES ($1, $2) RETURNING *', values: ['a@b.com', 30] }`
+  },
   brief: `<p>Viết hàm <code>buildInsert(table, data)</code> trả về <code>{ sql, values }</code> — câu lệnh INSERT <strong>tham số hoá</strong>, không nối chuỗi giá trị.</p>
 <ul>
 <li>Placeholder kiểu PostgreSQL: <code>$1</code>, <code>$2</code>…</li>
@@ -707,6 +971,16 @@ return calls;`, expect: [1, 2] }
 {
   id: 'node-21', lang: 'node', level: 'Cơ bản', topic: 'Xử lý dữ liệu', fn: 'slugify',
   title: 'Tạo slug cho URL',
+  io: {
+    signature: 'slugify(text) → string',
+    params: [
+      ['text', 'string · mặc định \'\'',
+       'Tiêu đề bất kỳ, có thể có dấu tiếng Việt, chữ HOA, ký tự đặc biệt và khoảng trắng thừa.']
+    ],
+    returns: ['string',
+      'Chuỗi chỉ gồm a-z, 0-9 và dấu gạch ngang. Không có gạch ở đầu, ở cuối, cũng không có hai gạch liền nhau.'],
+    example: `slugify('API & REST: cơ bản!')   // → 'api-rest-co-ban'`
+  },
   brief: `<p>Viết hàm <code>slugify(text)</code> chuyển tiêu đề thành slug dùng được trên URL.</p>
 <ul>
 <li>Chuyển về chữ thường</li>
@@ -741,6 +1015,19 @@ return calls;`, expect: [1, 2] }
 {
   id: 'node-22', lang: 'node', level: 'Trung bình', topic: 'Cấu hình', fn: 'loadConfig',
   title: 'Nạp cấu hình từ biến môi trường',
+  io: {
+    signature: 'loadConfig(env, schema) → object',
+    params: [
+      ['env', 'object · mặc định {}',
+       'Chính là process.env, nên MỌI giá trị đều là chuỗi. Biến có thể thiếu hẳn, hoặc có mà rỗng — cả hai đều coi như không có.'],
+      ['schema', 'object · mặc định {}',
+       'Tên biến → quy tắc. Quy tắc gồm: type ("number" | "boolean" | "string"), default (tuỳ chọn, dùng NGUYÊN giá trị, không ép kiểu lại), required (boolean, tuỳ chọn).']
+    ],
+    returns: ['object',
+      'Tên biến → giá trị đã ép đúng kiểu. Ném Error khi thiếu biến bắt buộc hoặc khi số không parse được.'],
+    example: `loadConfig({ PORT: '8080' }, { PORT: { type: 'number', default: 3000 } })
+// → { PORT: 8080 }`
+  },
   brief: `<p>Viết hàm <code>loadConfig(env, schema)</code> đọc cấu hình từ object biến môi trường theo mô tả.</p>
 <p><code>schema</code> có dạng <code>{ PORT: { type: 'number', default: 3000 }, JWT_SECRET: { type: 'string', required: true } }</code>.</p>
 <ul>
@@ -787,6 +1074,21 @@ return calls;`, expect: [1, 2] }
 {
   id: 'node-23', lang: 'node', level: 'Nâng cao', topic: 'Phân trang', fn: 'cursorPage',
   title: 'Phân trang bằng cursor',
+  io: {
+    signature: 'cursorPage(items, { after, size }) → object',
+    params: [
+      ['items', 'Array<object> · mặc định []',
+       'Danh sách ĐÃ sắp xếp theo id tăng dần. Mỗi phần tử có id (number). id không nhất thiết liên tiếp.'],
+      ['after', 'number | undefined',
+       'Con trỏ: lấy các phần tử có id LỚN HƠN giá trị này. Không có after nghĩa là lấy từ đầu. after có thể trỏ tới id không tồn tại.'],
+      ['size', 'number · mặc định 2',
+       'Số phần tử mỗi trang, bị kẹp trong khoảng 1–50.']
+    ],
+    returns: ['object',
+      '{ items: Array, nextCursor: number | null, hasNext: boolean }. nextCursor là id của phần tử cuối trang, null khi đã hết.'],
+    example: `cursorPage([{ id: 1 }, { id: 2 }, { id: 3 }], { size: 2 })
+// → { items: [{ id: 1 }, { id: 2 }], nextCursor: 2, hasNext: true }`
+  },
   brief: `<p>Viết hàm <code>cursorPage(items, { after, size })</code> phân trang theo cursor thay vì offset.</p>
 <ul>
 <li><code>items</code> đã sắp xếp theo <code>id</code> tăng dần</li>
@@ -822,6 +1124,19 @@ return r.items.length;`, expect: 50 }
 {
   id: 'node-24', lang: 'node', level: 'Nâng cao', topic: 'Bất đồng bộ', fn: 'createBatcher', async: true,
   title: 'Gom nhiều lời gọi thành một truy vấn',
+  io: {
+    signature: 'createBatcher(batchFn) → function load(id)',
+    params: [
+      ['batchFn', 'async function',
+       'Nhận MỘT mảng id và trả về Promise của một mảng kết quả — cùng độ dài, cùng thứ tự với mảng id nhận vào. Đây là chỗ bạn gọi database một lần cho cả lô.'],
+      ['id', 'any',
+       'Tham số của hàm load được trả về. Thường là số hoặc chuỗi. Nhiều lời gọi load trong cùng một vòng microtask sẽ được gom thành một lần gọi batchFn.']
+    ],
+    returns: ['function',
+      'Hàm load(id) trả về Promise cho đúng phần tử tương ứng với id đó. batchFn ném lỗi thì mọi Promise trong lô cùng reject.'],
+    example: `const load = createBatcher(async (ids) => db.users.whereIn('id', ids));
+const [a, b] = await Promise.all([load(1), load(2)]);   // chỉ MỘT truy vấn`
+  },
   brief: `<p>Kỹ thuật này (giống DataLoader) là cách triệt để nhất để diệt N+1. Viết hàm <code>createBatcher(batchFn)</code> trả về hàm <code>load(id)</code>.</p>
 <ul>
 <li>Nhiều lần gọi <code>load</code> trong <em>cùng một vòng microtask</em> được gom thành một lần gọi <code>batchFn(ids)</code></li>
@@ -879,6 +1194,17 @@ return results.map((r) => r.status + ':' + (r.reason ? r.reason.message : ''));`
 {
   id: 'node-25', lang: 'node', level: 'Trung bình', topic: 'Vận hành', fn: 'buildHealth',
   title: 'Tổng hợp health check',
+  io: {
+    signature: 'buildHealth(checks) → object',
+    params: [
+      ['checks', 'object · mặc định {}',
+       'Tên thành phần → { status: string, critical: boolean }. status là "healthy" hoặc bất kỳ chuỗi nào khác ("down", "degraded"…). critical true nghĩa là thành phần này hỏng thì cả ứng dụng coi như hỏng.']
+    ],
+    returns: ['object',
+      '{ status: string, httpStatus: number, checks: object, failing: Array<string> }. checks ở đầu ra là bản rút gọn: tên → status. failing sắp theo bảng chữ cái.'],
+    example: `buildHealth({ database: { status: 'healthy', critical: true }, redis: { status: 'down', critical: false } })
+// → { status: 'degraded', httpStatus: 200, checks: { database: 'healthy', redis: 'down' }, failing: ['redis'] }`
+  },
   brief: `<p>Viết hàm <code>buildHealth(checks)</code> nhận object trạng thái từng phụ thuộc và trả về báo cáo tổng.</p>
 <p><code>checks</code> dạng <code>{ database: { status: 'healthy', critical: true }, redis: { status: 'down', critical: false } }</code>.</p>
 <p>Trả về <code>{ status, httpStatus, checks, failing }</code>:</p>

@@ -40,6 +40,40 @@ export function renderExerciseList({ exercises, totals, filters, topics, recordO
   return html;
 }
 
+/**
+ * Khối "Đầu vào và đầu ra" — đặt ngay trên đề bài.
+ *
+ * Người mới học không đoán được hình dạng tham số chỉ từ tên của nó, nên mỗi
+ * bài đều phải nói thẳng: tham số tên gì, kiểu gì, có thể nhận giá trị nào.
+ * Bài Node.js mô tả chữ ký hàm; bài ASP.NET Core liệt kê những kiểu đã có sẵn
+ * trong dự án để người học biết mình được phép gọi cái gì.
+ */
+function renderIo(io) {
+  if (!io) return '';
+
+  let html = '<div class="card io-card lesson-body">';
+  html += `<span class="eyebrow">${io.given || io.note ? 'Đầu vào — những gì bạn đã có' : 'Đầu vào và đầu ra'}</span>`;
+
+  if (io.signature) html += `<p class="io-sig mono">${esc(io.signature)}</p>`;
+
+  if (io.params?.length) {
+    html += `<table><thead><tr><th>Tham số</th><th>Kiểu</th><th>Nhận giá trị gì</th></tr></thead><tbody>${io.params
+      .map(([name, type, desc]) =>
+        `<tr><td><code>${esc(name)}</code></td><td>${esc(type)}</td><td>${esc(desc)}</td></tr>`)
+      .join('')}</tbody></table>`;
+  }
+
+  if (io.returns) {
+    html += `<p class="io-returns"><strong>Trả về</strong> <code>${esc(io.returns[0])}</code> — ${esc(io.returns[1])}</p>`;
+  }
+
+  if (io.given) html += `<pre><code>${esc(io.given)}</code></pre>`;
+  if (io.note) html += `<p class="tiny muted">${esc(io.note)}</p>`;
+  if (io.example) html += `<pre><code>${esc(io.example)}</code></pre>`;
+
+  return html + '</div>';
+}
+
 export function renderExercise({ exercise, record, graderAvailable }) {
   if (!exercise) return emptyState('Không tìm thấy bài tập này.');
 
@@ -60,7 +94,8 @@ export function renderExercise({ exercise, record, graderAvailable }) {
 
   /* --- cột trái: đề bài --- */
   html += `<section>
-    <div class="card lesson-body">${exercise.brief}</div>`;
+    ${renderIo(exercise.io)}
+    <div class="card lesson-body" style="margin-top:12px">${exercise.brief}</div>`;
 
   if (exercise.hints?.length) {
     html += `<details class="solution" style="margin-top:12px">
