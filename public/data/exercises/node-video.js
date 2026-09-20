@@ -2001,5 +2001,1194 @@ escapeLike('file_name')    // → 'file\\\\_name'`
 
   return headers;
 }`
+},
+{
+  id: 'node-57', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'hashPassword',
+  title: 'Băm mật khẩu có salt và cost',
+  io: {
+    signature: 'hashPassword(password, options) → string',
+    params: [
+      ['password', 'string', 'Mật khẩu người dùng vừa nhập, chưa qua xử lý gì.'],
+      ['options', 'object', '{ salt: string, rounds: number (số vòng băm, phải từ 1 trở lên), digest: function nhận một chuỗi và trả về một chuỗi }.']
+    ],
+    returns: ['string',
+      'Chuỗi bốn phần ngăn bởi dấu $ : "mock$<rounds>$<salt>$<kết quả băm>". rounds nhỏ hơn 1 thì ném Error("rounds phải lớn hơn 0").'],
+    example: `hashPassword('123123', { salt: 'abc', rounds: 2, digest: (s) => s.split('').reverse().join('') })
+// băm 2 lần chuỗi 'abc123123' → 'mock$2$abc$abc123123'`
+  },
+  brief: `<p>Trong <code>authRoutes.js</code> của khoá học có đúng một dòng lo việc này:</p>
+<pre><code>const hashedPassword = bcrypt.hashSync(password, 8)</code></pre>
+<p>Đằng sau dòng đó là ba ý tưởng, và bài này dựng lại cả ba.</p>
+<ul>
+<li><strong>Băm một chiều</strong> — từ mật khẩu ra được chuỗi băm, nhưng từ chuỗi băm không quay ngược lại được. Database bị lộ thì mật khẩu vẫn an toàn.</li>
+<li><strong>Salt</strong> — một chuỗi ngẫu nhiên ghép vào trước khi băm, mỗi người một salt khác nhau. Nhờ vậy hai người dùng chung mật khẩu vẫn cho hai chuỗi băm khác nhau, và bảng tra sẵn trở nên vô dụng.</li>
+<li><strong>Cost (rounds)</strong> — số vòng lặp băm. Số 8 trong <code>hashSync(password, 8)</code> chính là nó. Cố ý làm chậm: bạn chờ thêm vài chục mili giây, còn kẻ dò mật khẩu thì chậm đi hàng triệu lần.</li>
+</ul>
+<p>Viết hàm <code>hashPassword(password, options)</code> theo đúng các bước:</p>
+<ol>
+<li><code>rounds</code> nhỏ hơn 1 → ném <code>Error('rounds phải lớn hơn 0')</code></li>
+<li>Bắt đầu từ chuỗi <code>salt + password</code></li>
+<li>Áp dụng <code>digest</code> lên chuỗi đó, lặp lại đúng <code>rounds</code> lần (kết quả lần trước là đầu vào lần sau)</li>
+<li>Trả về <code>'mock$' + rounds + '$' + salt + '$' + kết quả</code></li>
+</ol>
+<p>Hàm <code>digest</code> trong các test là phép đảo ngược chuỗi. Nó giúp bạn tự tính tay được kết quả, nhưng cũng cho thấy vì sao một hàm băm thật không được phép đảo ngược: đảo hai lần thì chuỗi quay về chỗ cũ, tức là băm 2 vòng chẳng khác gì không băm.</p>
+<p class="callout">Định dạng bốn phần này không phải tôi bịa ra — bcrypt thật cũng gói thuật toán, cost và salt vào chính chuỗi băm. Nhờ vậy lúc kiểm tra mật khẩu, hệ thống đọc lại được đúng tham số đã dùng khi tạo, kể cả khi bạn đã nâng cost từ lâu.</p>`,
+  starter: `function hashPassword(password, options = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Một vòng for chạy rounds lần, mỗi lần gán lại biến kết quả.',
+    'Kiểm tra rounds trước khi làm bất cứ việc gì khác.',
+    'Ghép chuỗi cuối bằng mảng rồi join("$") cho khỏi lẫn dấu.'
+  ],
+  tests: [
+    { label: 'một vòng', script: `return fn('123', { salt: 'abc', rounds: 1, digest: (s) => s.split('').reverse().join('') });`, expect: 'mock$1$abc$321cba' },
+    { label: 'hai vòng (đảo hai lần thì về chỗ cũ)', script: `return fn('123123', { salt: 'abc', rounds: 2, digest: (s) => s.split('').reverse().join('') });`, expect: 'mock$2$abc$abc123123' },
+    { label: 'salt khác cho kết quả khác', script: `const d = (s) => s.split('').reverse().join('');
+const a = fn('123', { salt: 'aaa', rounds: 1, digest: d });
+const b = fn('123', { salt: 'bbb', rounds: 1, digest: d });
+return a !== b;`, expect: true },
+    { label: 'gọi digest đúng số lần', script: `let calls = 0;
+fn('x', { salt: 's', rounds: 5, digest: (t) => { calls++; return t; } });
+return calls;`, expect: 5 },
+    { label: 'rounds bằng 0 thì ném lỗi', script: `try { fn('x', { salt: 's', rounds: 0, digest: (t) => t }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'rounds phải lớn hơn 0' },
+    { label: 'chuỗi kết quả có đủ bốn phần', script: `return fn('x', { salt: 's', rounds: 3, digest: (t) => t }).split('$').length;`, expect: 4 },
+    { label: 'phần đầu luôn là mock', script: `return fn('x', { salt: 's', rounds: 3, digest: (t) => t }).split('$')[0];`, expect: 'mock' }
+  ],
+  solution: `function hashPassword(password, options = {}) {
+  const { salt = '', rounds = 1, digest } = options;
+  if (!(rounds >= 1)) throw new Error('rounds phải lớn hơn 0');
+
+  let value = salt + password;
+  for (let i = 0; i < rounds; i++) value = digest(value);
+
+  return ['mock', rounds, salt, value].join('$');
+}`
+},
+{
+  id: 'node-58', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'verifyPassword',
+  title: 'Kiểm tra mật khẩu khi đăng nhập',
+  io: {
+    signature: 'verifyPassword(password, stored, digest) → boolean',
+    params: [
+      ['password', 'string', 'Mật khẩu người dùng vừa gõ khi đăng nhập.'],
+      ['stored', 'string', 'Chuỗi băm lấy từ database, dạng "mock$<rounds>$<salt>$<kết quả>". Có thể hỏng, thiếu phần, hoặc rounds không phải số.'],
+      ['digest', 'function', 'Đúng hàm băm đã dùng lúc đăng ký: nhận một chuỗi, trả một chuỗi.']
+    ],
+    returns: ['boolean', 'true khi mật khẩu khớp. Chuỗi băm hỏng dưới bất kỳ dạng nào đều trả false, không ném lỗi.'],
+    example: `verifyPassword('123123', 'mock$2$abc$abc123123', (s) => s.split('').reverse().join(''))
+// → true`
+  },
+  brief: `<p>Mật khẩu được băm một chiều, nên lúc đăng nhập server <strong>không thể</strong> giải ngược chuỗi băm ra để so sánh. Nó làm điều ngược lại: <em>băm lại mật khẩu vừa nhập, bằng đúng salt và đúng số vòng đã dùng trước đây, rồi so hai chuỗi băm</em>.</p>
+<p>Đó là lý do salt và rounds phải nằm ngay trong chuỗi lưu xuống database — không có chúng thì không tái tạo được.</p>
+<p>Viết hàm <code>verifyPassword(password, stored, digest)</code>:</p>
+<ol>
+<li>Tách <code>stored</code> bằng dấu <code>$</code>. Không đủ bốn phần, hoặc phần đầu không phải <code>'mock'</code>, hoặc rounds không phải số nguyên dương → <code>false</code></li>
+<li>Băm lại <code>salt + password</code> đúng <code>rounds</code> lần</li>
+<li>Trả về kết quả của phép so sánh với phần băm đã lưu</li>
+</ol>
+<p class="warn">Trong dự án thật, <code>bcrypt.compareSync</code> làm đúng chuỗi việc này. Đừng bao giờ tự so sánh bằng cách băm rồi dùng <code>===</code> trên mã sản phẩm: thời gian so sánh chuỗi phụ thuộc vào số ký tự giống nhau ở đầu, và đo thời gian đủ nhiều lần thì đoán được chuỗi băm. Thư viện dùng phép so sánh có thời gian không đổi.</p>`,
+  starter: `function verifyPassword(password, stored, digest) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'split("$") rồi kiểm tra length === 4 trước khi đụng tới các phần tử.',
+    'Number(parts[1]) cho NaN khi phần đó là chữ — Number.isInteger loại được luôn.',
+    'Phần băm lại giống hệt bài trước, chép lại vòng lặp là xong.'
+  ],
+  tests: [
+    { label: 'mật khẩu đúng', script: `return fn('123123', 'mock$2$abc$abc123123', (s) => s.split('').reverse().join(''));`, expect: true },
+    { label: 'mật khẩu sai', script: `return fn('sai-roi', 'mock$2$abc$abc123123', (s) => s.split('').reverse().join(''));`, expect: false },
+    { label: 'khớp với chuỗi do hashPassword sinh ra', script: `const d = (s) => s.split('').reverse().join('');
+let value = 'salt123' + 'matkhau';
+for (let i = 0; i < 4; i++) value = d(value);
+const stored = 'mock$4$salt123$' + value;
+return fn('matkhau', stored, d);`, expect: true },
+    { label: 'sai số vòng thì không khớp', script: `const d = (s) => s.split('').reverse().join('');
+return fn('123123', 'mock$3$abc$abc123123', d);`, expect: false },
+    { label: 'chuỗi băm thiếu phần', script: `return fn('123', 'mock$2$abc', (s) => s);`, expect: false },
+    { label: 'chuỗi băm rỗng', script: `return fn('123', '', (s) => s);`, expect: false },
+    { label: 'phần đầu không phải mock', script: `return fn('123', 'bcrypt$2$abc$xyz', (s) => s);`, expect: false },
+    { label: 'rounds không phải số', script: `return fn('123', 'mock$nhieu$abc$xyz', (s) => s);`, expect: false }
+  ],
+  solution: `function verifyPassword(password, stored, digest) {
+  const parts = String(stored).split('$');
+  if (parts.length !== 4) return false;
+
+  const [tag, roundsText, salt, expected] = parts;
+  if (tag !== 'mock') return false;
+
+  const rounds = Number(roundsText);
+  if (!Number.isInteger(rounds) || rounds < 1) return false;
+
+  let value = salt + password;
+  for (let i = 0; i < rounds; i++) value = digest(value);
+
+  return value === expected;
+}`
+},
+{
+  id: 'node-59', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'loginOutcome',
+  title: 'Đăng nhập sai: đừng nói rõ sai ở đâu',
+  io: {
+    signature: 'loginOutcome(user, password, verify) → object',
+    params: [
+      ['user', 'object | null | undefined', 'Bản ghi lấy từ database theo username. Không tìm thấy thì là null hoặc undefined. Tìm thấy thì có { id: number, password: string (chuỗi băm), locked: boolean tuỳ chọn }.'],
+      ['password', 'string', 'Mật khẩu người dùng vừa gõ.'],
+      ['verify', 'function', 'Hàm kiểm tra: verify(password, storedHash) trả về boolean.']
+    ],
+    returns: ['object',
+      '{ ok: boolean, status: number, message: string, userId: number | null }.'],
+    example: `loginOutcome(null, '123', () => false)
+// → { ok: false, status: 401, message: 'Sai tài khoản hoặc mật khẩu', userId: null }`
+  },
+  brief: `<p>Mã nguồn gốc của khoá học trả về hai thông báo khác nhau:</p>
+<pre><code>if (!user) { return res.status(404).send({ message: "User not found" }) }
+if (!passwordIsValid) { return res.status(401).send({ message: "Invalid password" }) }</code></pre>
+<p>Chạy thì đúng, nhưng nó vừa tiết lộ một thứ: <strong>email nào đã có tài khoản</strong>. Kẻ xấu thử một danh sách email, thấy cái nào trả 404 thì bỏ, cái nào trả 401 thì giữ lại — giờ họ có danh sách người dùng thật của bạn để đi dò mật khẩu hoặc gửi email lừa đảo.</p>
+<p>Viết hàm <code>loginOutcome(user, password, verify)</code> trả về kết quả kín miệng hơn, xét theo đúng thứ tự:</p>
+<table><thead><tr><th>Tình huống</th><th>Kết quả</th></tr></thead><tbody>
+<tr><td>Không tìm thấy user</td><td><code>{ ok: false, status: 401, message: 'Sai tài khoản hoặc mật khẩu', userId: null }</code></td></tr>
+<tr><td>Tài khoản bị khoá (<code>user.locked</code>)</td><td><code>{ ok: false, status: 423, message: 'Tài khoản đã bị khoá', userId: null }</code></td></tr>
+<tr><td>Mật khẩu sai</td><td>Giống hệt dòng đầu tiên, <strong>không sai một chữ</strong></td></tr>
+<tr><td>Hợp lệ</td><td><code>{ ok: true, status: 200, message: 'Đăng nhập thành công', userId: user.id }</code></td></tr>
+</tbody></table>
+<p class="callout">Vì sao tài khoản bị khoá lại được phép nói thẳng? Vì đó là trạng thái mà chính chủ tài khoản cần biết để liên hệ hỗ trợ, và nó chỉ lộ ra sau khi đã có user — thông tin thu được không giúp gì cho việc dò danh sách email.</p>`,
+  starter: `function loginOutcome(user, password, verify) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Đặt thông báo chung vào một hằng số, dùng lại cho cả hai nhánh — như vậy không thể lỡ tay viết lệch.',
+    'Thứ tự kiểm tra: không có user, rồi khoá, rồi mật khẩu.',
+    'userId chỉ khác null ở nhánh thành công.'
+  ],
+  tests: [
+    { label: 'không có tài khoản', script: `return fn(null, '123', () => false);`, expect: { ok: false, status: 401, message: 'Sai tài khoản hoặc mật khẩu', userId: null } },
+    { label: 'sai mật khẩu trả về y hệt', script: `return fn({ id: 7, password: 'hash' }, 'sai', () => false);`, expect: { ok: false, status: 401, message: 'Sai tài khoản hoặc mật khẩu', userId: null } },
+    { label: 'hai trường hợp sai không phân biệt được', script: `const a = fn(null, '123', () => false);
+const b = fn({ id: 7, password: 'hash' }, 'sai', () => false);
+return JSON.stringify(a) === JSON.stringify(b);`, expect: true },
+    { label: 'đăng nhập thành công', script: `return fn({ id: 7, password: 'hash' }, 'dung', () => true);`, expect: { ok: true, status: 200, message: 'Đăng nhập thành công', userId: 7 } },
+    { label: 'tài khoản bị khoá', script: `return fn({ id: 7, password: 'hash', locked: true }, 'dung', () => true);`, expect: { ok: false, status: 423, message: 'Tài khoản đã bị khoá', userId: null } },
+    { label: 'khoá được xét trước mật khẩu', script: `let called = false;
+fn({ id: 7, password: 'hash', locked: true }, 'sai', () => { called = true; return false; });
+return called;`, expect: false },
+    { label: 'verify nhận đúng hai tham số', script: `const seen = [];
+fn({ id: 7, password: 'hash-trong-db' }, 'mat-khau-vua-go', (a, b) => { seen.push(a, b); return true; });
+return seen;`, expect: ['mat-khau-vua-go', 'hash-trong-db'] }
+  ],
+  solution: `function loginOutcome(user, password, verify) {
+  const CHUNG = 'Sai tài khoản hoặc mật khẩu';
+  const tuChoi = { ok: false, status: 401, message: CHUNG, userId: null };
+
+  if (!user) return { ...tuChoi };
+  if (user.locked) return { ok: false, status: 423, message: 'Tài khoản đã bị khoá', userId: null };
+  if (!verify(password, user.password)) return { ...tuChoi };
+
+  return { ok: true, status: 200, message: 'Đăng nhập thành công', userId: user.id };
+}`
+},
+{
+  id: 'node-60', lang: 'node', level: 'Cơ bản', topic: 'Bảo mật', fn: 'splitJwt',
+  title: 'Ba phần của một JWT',
+  io: {
+    signature: 'splitJwt(token) → object | null',
+    params: [
+      ['token', 'string (hoặc bất kỳ)', 'Chuỗi JWT dạng "header.payload.signature", mỗi phần mã base64url. Có thể thiếu phần, có phần rỗng, hoặc không phải chuỗi.']
+    ],
+    returns: ['object | null',
+      '{ header: object, payload: object, signature: string } — hai phần đầu đã được giải mã và parse. Token hỏng → null, không ném lỗi.'],
+    example: `splitJwt('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjcsImV4cCI6MjAwMH0.chuky')
+// → { header: { alg: 'HS256', typ: 'JWT' }, payload: { sub: 7, exp: 2000 }, signature: 'chuky' }`
+  },
+  brief: `<p>Một JWT nhìn như chuỗi ngẫu nhiên, nhưng thật ra là ba phần ghép lại bằng dấu chấm:</p>
+<pre>eyJhbGciOiJIUzI1NiJ9 . eyJzdWIiOjd9 . 4f2a8b...
+      header              payload      signature
+   thuật toán ký        dữ liệu        chữ ký</pre>
+<p>Điều khiến nhiều người bất ngờ: <strong>header và payload chỉ được mã base64url, không hề mã hoá</strong>. Bất kỳ ai cầm token đều đọc được nội dung bên trong — chỉ cần dán vào jwt.io.</p>
+<p>Vậy chữ ký để làm gì? Để <em>chống sửa</em>, không phải để giấu. Ai đó đổi <code>"role":"user"</code> thành <code>"role":"admin"</code> thì chữ ký không còn khớp, và server từ chối. Nhưng họ vẫn đọc được mọi thứ bạn nhét vào đó — nên <strong>đừng bao giờ đặt mật khẩu, số thẻ hay bất cứ thứ gì nhạy cảm vào payload</strong>.</p>
+<p>Viết hàm <code>splitJwt(token)</code>:</p>
+<ul>
+<li>Tách bằng dấu chấm; không đúng ba phần → <code>null</code></li>
+<li>Giải mã base64url hai phần đầu rồi <code>JSON.parse</code>. Base64url khác base64 chuẩn: <code>-</code> thay cho <code>+</code>, <code>_</code> thay cho <code>/</code>, và có thể thiếu dấu <code>=</code> ở cuối</li>
+<li>Giải mã hoặc parse lỗi → <code>null</code></li>
+<li><code>signature</code> giữ nguyên dạng chuỗi</li>
+</ul>`,
+  starter: `function splitJwt(token) {
+  // Gợi ý: atob() có sẵn trong trình duyệt để giải mã base64
+}`,
+  hints: [
+    'replace(/-/g, "+") và replace(/_/g, "/") đưa base64url về base64 chuẩn.',
+    'Thêm dấu "=" cho tới khi độ dài chia hết cho 4.',
+    'Bọc toàn bộ trong try/catch rồi trả null — token hỏng là chuyện bình thường, không phải sự cố.'
+  ],
+  tests: [
+    { label: 'token hợp lệ', args: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjcsImV4cCI6MjAwMH0.chuky'], expect: { header: { alg: 'HS256', typ: 'JWT' }, payload: { sub: 7, exp: 2000 }, signature: 'chuky' } },
+    { label: 'payload không có exp', args: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjd9.abc'], expect: { header: { alg: 'HS256', typ: 'JWT' }, payload: { sub: 7 }, signature: 'abc' } },
+    { label: 'thiếu phần', args: ['abc.def'], expect: null },
+    { label: 'thừa phần', args: ['a.b.c.d'], expect: null },
+    { label: 'chuỗi rỗng', args: [''], expect: null },
+    { label: 'null', args: [null], expect: null },
+    { label: 'payload không phải JSON', args: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.a2hvbmctcGhhaS1qc29u.abc'], expect: null }
+  ],
+  solution: `function splitJwt(token) {
+  try {
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return null;
+
+    const decode = (text) => {
+      let base = text.replace(/-/g, '+').replace(/_/g, '/');
+      while (base.length % 4) base += '=';
+      return JSON.parse(atob(base));
+    };
+
+    return { header: decode(parts[0]), payload: decode(parts[1]), signature: parts[2] };
+  } catch {
+    return null;
+  }
+}`
+},
+{
+  id: 'node-61', lang: 'node', level: 'Nâng cao', topic: 'Bảo mật', fn: 'verifyJwt',
+  title: 'Xác minh token: chữ ký rồi mới tới hạn',
+  io: {
+    signature: 'verifyJwt(token, secret, sign, nowSeconds) → object',
+    params: [
+      ['token', 'string', 'Chuỗi JWT ba phần.'],
+      ['secret', 'string', 'Khoá bí mật của server, chính là process.env.JWT_SECRET.'],
+      ['sign', 'function', 'Hàm ký: sign(data, secret) trả về chuỗi chữ ký. data là hai phần đầu của token ghép bằng dấu chấm.'],
+      ['nowSeconds', 'number', 'Thời điểm hiện tại tính bằng GIÂY, vì exp trong JWT cũng tính bằng giây.']
+    ],
+    returns: ['object',
+      '{ valid: boolean, reason: string, payload: object | null }. reason là chuỗi rỗng khi hợp lệ, ngược lại là "malformed", "bad_signature" hoặc "expired".'],
+    example: `verifyJwt(token, 'bi-mat', (data, key) => 'sig' + data.length + key, 1000)
+// → { valid: true, reason: '', payload: { sub: 7, exp: 2000 } }`
+  },
+  brief: `<p>Đây là việc mà <code>jwt.verify</code> làm mỗi lần một request có token đi qua <code>authMiddleware</code>. Thứ tự kiểm tra không tuỳ tiện.</p>
+<ol>
+<li><strong>Tách và giải mã.</strong> Không đủ ba phần, hoặc payload không parse được → <code>{ valid: false, reason: 'malformed', payload: null }</code></li>
+<li><strong>Kiểm tra chữ ký.</strong> Tính <code>sign(header + '.' + payload, secret)</code> rồi so với phần chữ ký trong token. Lệch → <code>{ valid: false, reason: 'bad_signature', payload: null }</code></li>
+<li><strong>Kiểm tra hạn.</strong> Payload không có <code>exp</code> dạng số → <code>malformed</code>. Có mà <code>nowSeconds >= exp</code> → <code>{ valid: false, reason: 'expired', payload: &lt;payload đã giải mã&gt; }</code></li>
+<li><strong>Hợp lệ</strong> → <code>{ valid: true, reason: '', payload }</code></li>
+</ol>
+<p class="warn">Chữ ký phải kiểm tra <strong>trước</strong> mọi thứ khác. Nếu bạn đọc <code>exp</code> rồi mới xác minh chữ ký, thì trong khoảng thời gian đó bạn đang tin vào dữ liệu chưa được xác thực. Với một hàm nhỏ thế này thì chưa hại gì, nhưng thói quen "chưa xác minh thì chưa tin" là thứ giữ bạn an toàn khi hệ thống phức tạp lên.</p>
+<p>Ở nhánh <code>expired</code>, payload vẫn được trả về — chữ ký đã đúng nên nội dung đáng tin, chỉ là quá hạn. Ứng dụng thật dùng thông tin đó để biết nên cấp lại token cho ai.</p>`,
+  starter: `function verifyJwt(token, secret, sign, nowSeconds) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Phần tách và giải mã giống hệt bài splitJwt — viết lại hoặc chép sang cũng được.',
+    'Dữ liệu đem ký là hai phần ĐẦU của token, nguyên dạng base64url, không phải object đã parse.',
+    'Bốn nhánh trả về bốn object khác nhau — viết thẳng ra từng nhánh, đừng gộp cho khéo.'
+  ],
+  tests: [
+    { label: 'token hợp lệ', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6MjAwMH0';
+const token = h + '.' + p + '.' + sign(h + '.' + p, 'bi-mat');
+return fn(token, 'bi-mat', sign, 1000);`, expect: { valid: true, reason: '', payload: { sub: 7, exp: 2000 } } },
+    { label: 'sai chữ ký', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6MjAwMH0';
+return fn(h + '.' + p + '.chu-ky-gia', 'bi-mat', sign, 1000);`, expect: { valid: false, reason: 'bad_signature', payload: null } },
+    { label: 'sai khoá bí mật', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6MjAwMH0';
+const token = h + '.' + p + '.' + sign(h + '.' + p, 'khoa-khac');
+return fn(token, 'bi-mat', sign, 1000).reason;`, expect: 'bad_signature' },
+    { label: 'hết hạn', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6OTAwfQ';
+const token = h + '.' + p + '.' + sign(h + '.' + p, 'bi-mat');
+return fn(token, 'bi-mat', sign, 1000);`, expect: { valid: false, reason: 'expired', payload: { sub: 7, exp: 900 } } },
+    { label: 'đúng thời điểm hết hạn đã là quá hạn', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6MjAwMH0';
+const token = h + '.' + p + '.' + sign(h + '.' + p, 'bi-mat');
+return fn(token, 'bi-mat', sign, 2000).reason;`, expect: 'expired' },
+    { label: 'thiếu exp', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjd9';
+const token = h + '.' + p + '.' + sign(h + '.' + p, 'bi-mat');
+return fn(token, 'bi-mat', sign, 1000).reason;`, expect: 'malformed' },
+    { label: 'token hỏng', script: `return fn('abc.def', 'bi-mat', (d, k) => d, 1000);`, expect: { valid: false, reason: 'malformed', payload: null } },
+    { label: 'chữ ký được kiểm tra trước hạn', script: `const sign = (data, key) => 'sig' + data.length + key;
+const h = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
+const p = 'eyJzdWIiOjcsImV4cCI6OTAwfQ';
+return fn(h + '.' + p + '.chu-ky-gia', 'bi-mat', sign, 1000).reason;`, expect: 'bad_signature' }
+  ],
+  solution: `function verifyJwt(token, secret, sign, nowSeconds) {
+  const hong = { valid: false, reason: 'malformed', payload: null };
+
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return hong;
+
+  let payload;
+  try {
+    let base = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base.length % 4) base += '=';
+    payload = JSON.parse(atob(base));
+  } catch {
+    return hong;
+  }
+
+  const expected = sign(parts[0] + '.' + parts[1], secret);
+  if (expected !== parts[2]) return { valid: false, reason: 'bad_signature', payload: null };
+
+  if (!Number.isFinite(payload.exp)) return hong;
+  if (nowSeconds >= payload.exp) return { valid: false, reason: 'expired', payload };
+
+  return { valid: true, reason: '', payload };
+}`
+},
+{
+  id: 'node-62', lang: 'node', level: 'Cơ bản', topic: 'Bảo mật', fn: 'buildJwtPayload',
+  title: 'Nên nhét gì vào payload',
+  io: {
+    signature: 'buildJwtPayload(user, nowSeconds, ttlSeconds) → object',
+    params: [
+      ['user', 'object', 'Bản ghi user lấy từ database. Có thể chứa cả những trường không bao giờ được lộ: password, passwordHash, email, phone…'],
+      ['nowSeconds', 'number', 'Thời điểm hiện tại tính bằng giây.'],
+      ['ttlSeconds', 'number · mặc định 86400', 'Token sống bao lâu, tính bằng giây. 86400 là một ngày.']
+    ],
+    returns: ['object',
+      'Đúng năm trường: sub (string), username (string), roles (mảng chuỗi), iat (number), exp (number).'],
+    example: `buildJwtPayload({ id: 7, username: 'kiet', roles: ['user'], password: 'hash' }, 1000, 86400)
+// → { sub: '7', username: 'kiet', roles: ['user'], iat: 1000, exp: 87400 }`
+  },
+  brief: `<p>Trong <code>authRoutes.js</code>, token được tạo bằng:</p>
+<pre><code>const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' })</code></pre>
+<p>Gọn, nhưng thiếu vài thứ nên có. Bài này dựng payload đầy đủ hơn — và quan trọng hơn cả là <strong>quyết định cái gì được vào, cái gì không</strong>.</p>
+<p>Trả về đúng năm trường, không hơn:</p>
+<table><thead><tr><th>Trường</th><th>Giá trị</th><th>Vì sao</th></tr></thead><tbody>
+<tr><td><code>sub</code></td><td><code>String(user.id)</code></td><td>"subject" — ai là chủ token. Chuẩn JWT khuyến nghị là chuỗi</td></tr>
+<tr><td><code>username</code></td><td><code>user.username</code>, thiếu thì chuỗi rỗng</td><td>Hiển thị tên mà không phải truy vấn database</td></tr>
+<tr><td><code>roles</code></td><td><code>user.roles</code> nếu là mảng, ngược lại mảng rỗng</td><td>Phân quyền nhanh, không cần tra bảng</td></tr>
+<tr><td><code>iat</code></td><td><code>nowSeconds</code></td><td>"issued at" — cấp lúc nào</td></tr>
+<tr><td><code>exp</code></td><td><code>nowSeconds + ttlSeconds</code></td><td>Hết hạn lúc nào</td></tr>
+</tbody></table>
+<p class="warn">Mọi trường khác của <code>user</code> đều <strong>không</strong> được vào. Payload chỉ được mã base64, ai cũng đọc được — nhét <code>password</code>, <code>email</code> hay số điện thoại vào đó là đem chúng đi phát cho mọi trang mà người dùng ghé thăm. Cách an toàn là <em>liệt kê những gì được giữ</em>, chứ không phải xoá những gì cần bỏ: hôm nào database thêm cột mới, danh sách xoá sẽ sót còn danh sách giữ thì không.</p>`,
+  starter: `function buildJwtPayload(user = {}, nowSeconds, ttlSeconds = 86400) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Dựng object mới từ đầu thay vì sao chép user rồi xoá bớt.',
+    'Array.isArray kiểm tra roles có phải mảng thật không.',
+    'exp là một phép cộng, không phải một mốc thời gian mới.'
+  ],
+  tests: [
+    { label: 'payload đầy đủ', args: [{ id: 7, username: 'kiet', roles: ['user'] }, 1000, 86400], expect: { sub: '7', username: 'kiet', roles: ['user'], iat: 1000, exp: 87400 } },
+    { label: 'ttl mặc định một ngày', args: [{ id: 1, username: 'a', roles: [] }, 0], expect: { sub: '1', username: 'a', roles: [], iat: 0, exp: 86400 } },
+    { label: 'không lộ mật khẩu', script: `const out = fn({ id: 7, username: 'kiet', password: 'hash', email: 'a@b.com' }, 1000, 60);
+return Object.keys(out).sort();`, expect: ['exp', 'iat', 'roles', 'sub', 'username'] },
+    { label: 'id thành chuỗi', script: `return typeof fn({ id: 7 }, 1000).sub;`, expect: 'string' },
+    { label: 'thiếu username thì chuỗi rỗng', args: [{ id: 7 }, 1000, 60], expect: { sub: '7', username: '', roles: [], iat: 1000, exp: 1060 } },
+    { label: 'roles không phải mảng thì bỏ qua', args: [{ id: 7, username: 'a', roles: 'admin' }, 1000, 60], expect: { sub: '7', username: 'a', roles: [], iat: 1000, exp: 1060 } }
+  ],
+  solution: `function buildJwtPayload(user = {}, nowSeconds, ttlSeconds = 86400) {
+  return {
+    sub: String(user.id),
+    username: user.username ?? '',
+    roles: Array.isArray(user.roles) ? user.roles : [],
+    iat: nowSeconds,
+    exp: nowSeconds + ttlSeconds,
+  };
+}`
+},
+{
+  id: 'node-63', lang: 'node', level: 'Cơ bản', topic: 'Bảo mật', fn: 'readBearerToken',
+  title: 'Đọc token từ header Authorization',
+  io: {
+    signature: 'readBearerToken(headers) → string | null',
+    params: [
+      ['headers', 'object · mặc định {}', 'Header của request. Tên header có thể viết hoa hay thường tuỳ ý. Giá trị Authorization có thể có tiền tố "Bearer ", có thể không, có thể rỗng.']
+    ],
+    returns: ['string | null', 'Chuỗi token, hoặc null khi không có gì dùng được.'],
+    example: `readBearerToken({ Authorization: 'Bearer eyJhbGci...' })   // → 'eyJhbGci...'
+readBearerToken({ authorization: 'eyJhbGci...' })          // → 'eyJhbGci...'
+readBearerToken({})                                         // → null`
+  },
+  brief: `<p><code>authMiddleware</code> trong dự án đọc token như sau:</p>
+<pre><code>const token = req.headers['authorization']</code></pre>
+<p>Chạy được, vì file <code>.rest</code> của khoá học gửi token trần. Nhưng chuẩn HTTP quy định token phải đi kèm tiền tố:</p>
+<pre>Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...</pre>
+<p>Và đây là dạng mà Postman, thư viện HTTP, cổng API — gần như mọi công cụ — sẽ gửi. Viết hàm <code>readBearerToken(headers)</code> nhận cả hai dạng:</p>
+<ul>
+<li>Tìm header tên <code>authorization</code>, <strong>không phân biệt hoa thường</strong> (HTTP quy định vậy)</li>
+<li>Giá trị bắt đầu bằng <code>'Bearer '</code> (cũng không phân biệt hoa thường) → trả phần sau, đã cắt khoảng trắng</li>
+<li>Không có tiền tố → trả nguyên giá trị đã cắt khoảng trắng</li>
+<li>Không có header, giá trị rỗng, hoặc chỉ có mỗi chữ <code>Bearer</code> → <code>null</code></li>
+</ul>`,
+  starter: `function readBearerToken(headers = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Duyệt Object.entries và so key.toLowerCase() === "authorization".',
+    'startsWith trên bản đã toLowerCase, nhưng cắt chuỗi trên bản gốc — token phân biệt hoa thường.',
+    'Kiểm tra chuỗi rỗng ở cuối cùng, sau khi đã cắt khoảng trắng.'
+  ],
+  tests: [
+    { label: 'có tiền tố Bearer', args: [{ Authorization: 'Bearer eyJhbGci' }], expect: 'eyJhbGci' },
+    { label: 'tên header viết thường', args: [{ authorization: 'Bearer eyJhbGci' }], expect: 'eyJhbGci' },
+    { label: 'tên header viết lung tung', args: [{ AuThOrIzAtIoN: 'Bearer eyJhbGci' }], expect: 'eyJhbGci' },
+    { label: 'token trần vẫn nhận', args: [{ authorization: 'eyJhbGci' }], expect: 'eyJhbGci' },
+    { label: 'tiền tố viết thường', args: [{ authorization: 'bearer eyJhbGci' }], expect: 'eyJhbGci' },
+    { label: 'giữ nguyên hoa thường của token', args: [{ authorization: 'Bearer AbCdEf' }], expect: 'AbCdEf' },
+    { label: 'khoảng trắng thừa', args: [{ authorization: '  Bearer   eyJhbGci  ' }], expect: 'eyJhbGci' },
+    { label: 'không có header', args: [{}], expect: null },
+    { label: 'giá trị rỗng', args: [{ authorization: '' }], expect: null },
+    { label: 'chỉ có chữ Bearer', args: [{ authorization: 'Bearer' }], expect: null },
+    { label: 'Bearer kèm khoảng trắng nhưng không có token', args: [{ authorization: 'Bearer   ' }], expect: null }
+  ],
+  solution: `function readBearerToken(headers = {}) {
+  let raw = null;
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === 'authorization') raw = value;
+  }
+  if (raw == null) return null;
+
+  let text = String(raw).trim();
+  if (text.toLowerCase().startsWith('bearer ')) text = text.slice(7).trim();
+  else if (text.toLowerCase() === 'bearer') text = '';
+
+  return text === '' ? null : text;
+}`
+},
+{
+  id: 'node-64', lang: 'node', level: 'Nâng cao', topic: 'Bảo mật', fn: 'createAuthMiddleware',
+  title: 'Viết authMiddleware hoàn chỉnh',
+  io: {
+    signature: 'createAuthMiddleware(verify) → function(req, res, next)',
+    params: [
+      ['verify', 'function', 'Hàm xác minh token: verify(token) trả về { valid: boolean, reason: string, payload: object | null } — đúng hình dạng mà bài verifyJwt trả về.'],
+      ['req', 'object', 'Tham số của middleware. Có req.headers (object).'],
+      ['res', 'object', 'Tham số của middleware. Có status(code) trả về chính nó, và json(data).'],
+      ['next', 'function', 'Tham số của middleware. Gọi để chuyển cho mắt xích sau.']
+    ],
+    returns: ['function', 'Middleware ba tham số, gắn được bằng app.use("/todos", middleware, todoRoutes).'],
+    example: `const auth = createAuthMiddleware(verify);
+app.use('/todos', auth, todoRoutes);`
+  },
+  brief: `<p>Ghép mọi thứ đã học về xác thực thành một middleware dùng được thật. Đây chính là <code>authMiddleware.js</code> của dự án, có thêm phần phân biệt lý do từ chối.</p>
+<table><thead><tr><th>Tình huống</th><th>Phải làm gì</th></tr></thead><tbody>
+<tr><td>Không có token</td><td><code>res.status(401).json({ message: 'Chưa đăng nhập' })</code></td></tr>
+<tr><td><code>verify</code> trả <code>reason: 'expired'</code></td><td><code>res.status(401).json({ message: 'Token đã hết hạn' })</code></td></tr>
+<tr><td><code>verify</code> trả <code>valid: false</code> vì lý do khác</td><td><code>res.status(401).json({ message: 'Token không hợp lệ' })</code></td></tr>
+<tr><td>Hợp lệ</td><td>Gắn <code>req.userId</code> và <code>req.auth</code>, rồi gọi <code>next()</code></td></tr>
+</tbody></table>
+<p>Chi tiết khi hợp lệ:</p>
+<ul>
+<li><code>req.userId</code> là <code>payload.sub</code> đã đổi sang số bằng <code>Number()</code></li>
+<li><code>req.auth</code> là chính <code>payload</code></li>
+<li>Đọc token bằng đúng quy tắc của bài <code>readBearerToken</code>: header không phân biệt hoa thường, chấp nhận cả dạng có và không có tiền tố <code>Bearer</code></li>
+</ul>
+<p class="warn">Ba nhánh từ chối đều trả 401, không phải 403. Chúng đều có nghĩa "tôi không xác định được bạn là ai" — 403 dành cho trường hợp đã biết bạn là ai nhưng bạn không đủ quyền.</p>
+<p>Mọi nhánh từ chối đều <strong>không</strong> gọi <code>next()</code>. Đó là toàn bộ cơ chế chặn: chuỗi middleware dừng lại, route phía sau không bao giờ chạy.</p>`,
+  starter: `function createAuthMiddleware(verify) {
+  // Viết code ở đây — trả về một hàm (req, res, next)
+}`,
+  hints: [
+    'Hàm ngoài chỉ nhận verify rồi trả về hàm trong; đây là mẫu "factory" bạn gặp rất nhiều trong Express.',
+    'Chép lại logic đọc header từ bài readBearerToken.',
+    'Nhớ return sau mỗi lần gọi res, nếu không hàm chạy tiếp và gọi next().'
+  ],
+  tests: [
+    { label: 'không có token', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d.message); return res; } };
+fn(() => ({ valid: true }))({ headers: {} }, res, () => log.push('next'));
+return log;`, expect: [401, 'Chưa đăng nhập'] },
+    { label: 'token hết hạn', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d.message); return res; } };
+fn(() => ({ valid: false, reason: 'expired', payload: null }))({ headers: { authorization: 'Bearer x' } }, res, () => log.push('next'));
+return log;`, expect: [401, 'Token đã hết hạn'] },
+    { label: 'chữ ký sai', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d.message); return res; } };
+fn(() => ({ valid: false, reason: 'bad_signature', payload: null }))({ headers: { authorization: 'Bearer x' } }, res, () => log.push('next'));
+return log;`, expect: [401, 'Token không hợp lệ'] },
+    { label: 'hợp lệ thì gọi next', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn(() => ({ valid: true, reason: '', payload: { sub: '7' } }))({ headers: { authorization: 'Bearer x' } }, res, () => log.push('next'));
+return log;`, expect: ['next'] },
+    { label: 'gắn req.userId dạng số', script: `const req = { headers: { authorization: 'Bearer x' } };
+fn(() => ({ valid: true, reason: '', payload: { sub: '7', username: 'kiet' } }))(req, { status() { return this; }, json() {} }, () => {});
+return req.userId;`, expect: 7 },
+    { label: 'gắn req.auth là payload', script: `const req = { headers: { authorization: 'Bearer x' } };
+fn(() => ({ valid: true, reason: '', payload: { sub: '7', username: 'kiet' } }))(req, { status() { return this; }, json() {} }, () => {});
+return req.auth;`, expect: { sub: '7', username: 'kiet' } },
+    { label: 'từ chối thì không gọi next', script: `let called = false;
+fn(() => ({ valid: false, reason: 'x' }))({ headers: { authorization: 'Bearer x' } }, { status() { return this; }, json() {} }, () => { called = true; });
+return called;`, expect: false },
+    { label: 'token trần không có Bearer vẫn nhận', script: `const log = [];
+fn((t) => ({ valid: true, reason: '', payload: { sub: '1' } }))({ headers: { Authorization: 'token-tran' } }, { status() { return this; }, json() {} }, () => log.push('next'));
+return log;`, expect: ['next'] },
+    { label: 'truyền đúng token cho verify', script: `let seen = null;
+fn((t) => { seen = t; return { valid: true, reason: '', payload: { sub: '1' } }; })({ headers: { authorization: 'Bearer abc123' } }, { status() { return this; }, json() {} }, () => {});
+return seen;`, expect: 'abc123' }
+  ],
+  solution: `function createAuthMiddleware(verify) {
+  const readToken = (headers = {}) => {
+    let raw = null;
+    for (const [key, value] of Object.entries(headers)) {
+      if (key.toLowerCase() === 'authorization') raw = value;
+    }
+    if (raw == null) return null;
+
+    let text = String(raw).trim();
+    if (text.toLowerCase().startsWith('bearer ')) text = text.slice(7).trim();
+    else if (text.toLowerCase() === 'bearer') text = '';
+
+    return text === '' ? null : text;
+  };
+
+  return function authMiddleware(req, res, next) {
+    const token = readToken(req.headers);
+    if (!token) {
+      res.status(401).json({ message: 'Chưa đăng nhập' });
+      return;
+    }
+
+    const result = verify(token);
+    if (!result.valid) {
+      const message = result.reason === 'expired' ? 'Token đã hết hạn' : 'Token không hợp lệ';
+      res.status(401).json({ message });
+      return;
+    }
+
+    req.userId = Number(result.payload.sub);
+    req.auth = result.payload;
+    next();
+  };
+}`
+},
+{
+  id: 'node-65', lang: 'node', level: 'Trung bình', topic: 'Bảo mật', fn: 'ownedRowSql',
+  title: 'Câu lệnh không cho đụng vào dữ liệu người khác',
+  io: {
+    signature: 'ownedRowSql(action, options) → { sql, values }',
+    params: [
+      ['action', 'string', 'Một trong "select", "update", "delete". Giá trị khác thì ném Error("hành động không hợp lệ").'],
+      ['options', 'object', '{ table: string, id: number, userId: number, set: object (chỉ dùng cho update, là cột → giá trị mới) }. Tên bảng và tên cột chỉ được gồm chữ, số và gạch dưới.']
+    ],
+    returns: ['object', '{ sql: string, values: Array } — câu lệnh tham số hoá, LUÔN có điều kiện user_id.'],
+    example: `ownedRowSql('delete', { table: 'todos', id: 2, userId: 7 })
+// → { sql: 'DELETE FROM todos WHERE id = ? AND user_id = ?', values: [2, 7] }`
+  },
+  brief: `<p><strong>IDOR</strong> — Insecure Direct Object Reference — là lỗ hổng đơn giản nhất và phổ biến nhất trong các API có đăng nhập. Người dùng đã đăng nhập hợp lệ chỉ việc đổi con số trên URL, từ <code>/todos/2</code> thành <code>/todos/3</code>, và xem được việc riêng của người khác.</p>
+<p>Đây là lỗ hổng có thật trong mã nguồn của khoá học:</p>
+<pre><code>// authRoutes đã xác thực xong, nhưng câu lệnh này không hỏi todo thuộc về ai
+const updatedTodo = db.prepare('UPDATE todos SET completed = ? WHERE id = ?')
+updatedTodo.run(completed, id)</code></pre>
+<p>Xác thực trả lời "bạn là ai". Nó <em>không</em> trả lời "bản ghi này có phải của bạn không". Câu thứ hai phải hỏi ở tầng dữ liệu, trong chính mệnh đề <code>WHERE</code>.</p>
+<p>Viết hàm <code>ownedRowSql(action, options)</code> sinh câu lệnh luôn kèm điều kiện quyền sở hữu:</p>
+<table><thead><tr><th>action</th><th>Kết quả</th></tr></thead><tbody>
+<tr><td><code>'select'</code></td><td><code>SELECT * FROM &lt;bảng&gt; WHERE id = ? AND user_id = ?</code> · values <code>[id, userId]</code></td></tr>
+<tr><td><code>'delete'</code></td><td><code>DELETE FROM &lt;bảng&gt; WHERE id = ? AND user_id = ?</code> · values <code>[id, userId]</code></td></tr>
+<tr><td><code>'update'</code></td><td><code>UPDATE &lt;bảng&gt; SET &lt;cột&gt; = ?, ... WHERE id = ? AND user_id = ?</code> · values <code>[...giá trị mới, id, userId]</code></td></tr>
+</tbody></table>
+<ul>
+<li>Tên bảng và mọi tên cột sai định dạng → ném <code>Error('tên không hợp lệ')</code></li>
+<li><code>update</code> mà <code>set</code> rỗng hoặc thiếu → ném <code>Error('không có gì để cập nhật')</code></li>
+<li><code>action</code> lạ → ném <code>Error('hành động không hợp lệ')</code></li>
+</ul>
+<p class="callout">Cách này còn cho một hiệu ứng phụ rất hay: xoá hay sửa bản ghi của người khác sẽ trả về <code>changes: 0</code>, và bạn đáp lại bằng <strong>404</strong> chứ không phải 403. Người dùng không học được rằng bản ghi đó có tồn tại.</p>`,
+  starter: `function ownedRowSql(action, options = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Kiểm tra tên bảng một lần ở đầu, rồi kiểm tên cột khi dựng mệnh đề SET.',
+    'Thứ tự values phải khớp thứ tự dấu hỏi: giá trị SET trước, rồi id, rồi userId.',
+    'Ba nhánh chỉ khác nhau ở phần đầu câu lệnh — phần WHERE viết chung một chỗ.'
+  ],
+  tests: [
+    { label: 'select', args: ['select', { table: 'todos', id: 2, userId: 7 }], expect: { sql: 'SELECT * FROM todos WHERE id = ? AND user_id = ?', values: [2, 7] } },
+    { label: 'delete', args: ['delete', { table: 'todos', id: 2, userId: 7 }], expect: { sql: 'DELETE FROM todos WHERE id = ? AND user_id = ?', values: [2, 7] } },
+    { label: 'update một cột', args: ['update', { table: 'todos', id: 2, userId: 7, set: { completed: 1 } }], expect: { sql: 'UPDATE todos SET completed = ? WHERE id = ? AND user_id = ?', values: [1, 2, 7] } },
+    { label: 'update nhiều cột', args: ['update', { table: 'todos', id: 2, userId: 7, set: { task: 'moi', completed: 0 } }], expect: { sql: 'UPDATE todos SET task = ?, completed = ? WHERE id = ? AND user_id = ?', values: ['moi', 0, 2, 7] } },
+    { label: 'update không có gì để sửa', script: `try { fn('update', { table: 'todos', id: 1, userId: 1, set: {} }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'không có gì để cập nhật' },
+    { label: 'tên bảng lạ', script: `try { fn('select', { table: 'todos; DROP TABLE x', id: 1, userId: 1 }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' },
+    { label: 'tên cột lạ', script: `try { fn('update', { table: 'todos', id: 1, userId: 1, set: { 'a b': 1 } }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' },
+    { label: 'hành động lạ', script: `try { fn('drop', { table: 'todos', id: 1, userId: 1 }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'hành động không hợp lệ' },
+    { label: 'mọi câu lệnh đều có điều kiện user_id', script: `const a = fn('select', { table: 't', id: 1, userId: 2 }).sql;
+const b = fn('delete', { table: 't', id: 1, userId: 2 }).sql;
+const c = fn('update', { table: 't', id: 1, userId: 2, set: { x: 1 } }).sql;
+return [a, b, c].every((sql) => sql.includes('user_id = ?'));`, expect: true }
+  ],
+  solution: `function ownedRowSql(action, options = {}) {
+  const safe = /^[A-Za-z0-9_]+$/;
+  const check = (name) => {
+    if (!safe.test(String(name))) throw new Error('tên không hợp lệ');
+    return name;
+  };
+
+  const { table, id, userId, set } = options;
+  check(table);
+
+  const where = ' WHERE id = ? AND user_id = ?';
+
+  if (action === 'select') {
+    return { sql: 'SELECT * FROM ' + table + where, values: [id, userId] };
+  }
+
+  if (action === 'delete') {
+    return { sql: 'DELETE FROM ' + table + where, values: [id, userId] };
+  }
+
+  if (action === 'update') {
+    const columns = Object.keys(set ?? {});
+    if (columns.length === 0) throw new Error('không có gì để cập nhật');
+
+    const assignments = columns.map((column) => check(column) + ' = ?').join(', ');
+    const values = columns.map((column) => set[column]);
+
+    return { sql: 'UPDATE ' + table + ' SET ' + assignments + where, values: [...values, id, userId] };
+  }
+
+  throw new Error('hành động không hợp lệ');
+}`
+},
+{
+  id: 'node-66', lang: 'node', level: 'Trung bình', topic: 'Prisma', fn: 'toPrismaWhere',
+  title: 'Từ query string sang where của Prisma',
+  io: {
+    signature: 'toPrismaWhere(query, allowed) → object',
+    params: [
+      ['query', 'object · mặc định {}', 'req.query thô, mọi giá trị đều là chuỗi. Có thể chứa khoá điều khiển page, size, sort và cả khoá lạ do client tự thêm.'],
+      ['allowed', 'Array<string> · mặc định []', 'Danh sách trường được phép lọc. Khoá ngoài danh sách bị bỏ qua hoàn toàn.']
+    ],
+    returns: ['object', 'Đối tượng where truyền thẳng được vào prisma.todo.findMany({ where }).'],
+    example: `toPrismaWhere({ completed: 'true', task: 'contains:hoc', page: '2' }, ['completed', 'task'])
+// → { completed: true, task: { contains: 'hoc' } }`
+  },
+  brief: `<p>Prisma nhận điều kiện lọc dưới dạng object, không phải chuỗi SQL:</p>
+<pre><code>const todos = await prisma.todo.findMany({
+  where: { userId: req.userId, completed: false }
+})</code></pre>
+<p>Nhưng dữ liệu từ client lại tới dưới dạng query string, và <strong>mọi giá trị đều là chuỗi</strong>. Viết hàm <code>toPrismaWhere(query, allowed)</code> làm bản dịch.</p>
+<table><thead><tr><th>Giá trị vào</th><th>Kết quả</th></tr></thead><tbody>
+<tr><td><code>'true'</code> / <code>'false'</code></td><td><code>true</code> / <code>false</code></td></tr>
+<tr><td>Chuỗi toàn chữ số, ví dụ <code>'7'</code></td><td>Số <code>7</code></td></tr>
+<tr><td><code>'gt:10'</code></td><td><code>{ gt: 10 }</code></td></tr>
+<tr><td><code>'contains:hoc'</code></td><td><code>{ contains: 'hoc' }</code></td></tr>
+<tr><td>Chuỗi thường</td><td>Giữ nguyên</td></tr>
+</tbody></table>
+<ul>
+<li>Toán tử nhận được: <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>contains</code>, <code>startsWith</code></li>
+<li>Bốn toán tử so sánh (<code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>) ép giá trị sang số; <code>contains</code> và <code>startsWith</code> giữ chuỗi</li>
+<li>Tiền tố lạ (ví dụ <code>'xyz:1'</code>) thì <strong>không</strong> coi là toán tử — giữ nguyên cả chuỗi</li>
+<li>Ba khoá <code>page</code>, <code>size</code>, <code>sort</code> luôn bị bỏ qua, kể cả khi chúng có trong <code>allowed</code></li>
+</ul>
+<p class="warn">Danh sách cho phép không phải chuyện làm cho gọn. Đổ thẳng <code>req.query</code> vào <code>where</code> nghĩa là client tự chọn được điều kiện lọc — và với Prisma, họ lọc được cả sang bảng liên kết để moi dữ liệu của người khác.</p>`,
+  starter: `function toPrismaWhere(query = {}, allowed = []) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Tách ở dấu hai chấm đầu tiên để lấy tiền tố, rồi kiểm tra nó có trong danh sách toán tử không.',
+    '/^[0-9]+$/ nhận ra chuỗi toàn chữ số an toàn hơn Number(x) không NaN.',
+    'Viết hàm phụ ép kiểu một giá trị, gọi lại ở cả nhánh thường lẫn nhánh toán tử.'
+  ],
+  tests: [
+    { label: 'lọc theo chuỗi', args: [{ task: 'hoc bai' }, ['task']], expect: { task: 'hoc bai' } },
+    { label: 'ép boolean', args: [{ completed: 'true' }, ['completed']], expect: { completed: true } },
+    { label: 'ép số', args: [{ userId: '7' }, ['userId']], expect: { userId: 7 } },
+    { label: 'toán tử so sánh', args: [{ id: 'gt:10' }, ['id']], expect: { id: { gt: 10 } } },
+    { label: 'toán tử chuỗi', args: [{ task: 'contains:hoc' }, ['task']], expect: { task: { contains: 'hoc' } } },
+    { label: 'startsWith', args: [{ task: 'startsWith:Lam' }, ['task']], expect: { task: { startsWith: 'Lam' } } },
+    { label: 'bỏ qua khoá không được phép', args: [{ task: 'a', userId: '99' }, ['task']], expect: { task: 'a' } },
+    { label: 'bỏ qua khoá điều khiển', args: [{ page: '2', size: '20', sort: 'id', task: 'a' }, ['task', 'page', 'size', 'sort']], expect: { task: 'a' } },
+    { label: 'tiền tố lạ giữ nguyên', args: [{ task: 'xyz:1' }, ['task']], expect: { task: 'xyz:1' } },
+    { label: 'query rỗng', args: [{}, ['task']], expect: {} },
+    { label: 'false cũng là boolean', args: [{ completed: 'false' }, ['completed']], expect: { completed: false } }
+  ],
+  solution: `function toPrismaWhere(query = {}, allowed = []) {
+  const CONTROL = new Set(['page', 'size', 'sort']);
+  const NUMERIC_OPS = new Set(['gt', 'gte', 'lt', 'lte']);
+  const TEXT_OPS = new Set(['contains', 'startsWith']);
+
+  const cast = (text) => {
+    if (text === 'true') return true;
+    if (text === 'false') return false;
+    if (/^[0-9]+$/.test(text)) return Number(text);
+    return text;
+  };
+
+  const where = {};
+
+  for (const [key, raw] of Object.entries(query)) {
+    if (CONTROL.has(key)) continue;
+    if (!allowed.includes(key)) continue;
+
+    const text = String(raw);
+    const colon = text.indexOf(':');
+    const prefix = colon === -1 ? '' : text.slice(0, colon);
+
+    if (NUMERIC_OPS.has(prefix)) where[key] = { [prefix]: Number(text.slice(colon + 1)) };
+    else if (TEXT_OPS.has(prefix)) where[key] = { [prefix]: text.slice(colon + 1) };
+    else where[key] = cast(text);
+  }
+
+  return where;
+}`
+},
+{
+  id: 'node-67', lang: 'node', level: 'Trung bình', topic: 'Prisma',
+  file: 'schema.prisma', syntax: 'prisma',
+  title: 'Viết schema.prisma cho ứng dụng todo',
+  io: {
+    given: `// Hai bảng SQLite ban đầu, bạn dịch chúng sang Prisma:
+//
+// CREATE TABLE users (
+//     id INTEGER PRIMARY KEY AUTOINCREMENT,
+//     username TEXT UNIQUE,
+//     password TEXT
+// )
+//
+// CREATE TABLE todos (
+//     id INTEGER PRIMARY KEY AUTOINCREMENT,
+//     user_id INTEGER,
+//     task TEXT,
+//     completed BOOLEAN DEFAULT 0,
+//     FOREIGN KEY(user_id) REFERENCES users(id)
+// )
+//
+// .env đã có: DATABASE_URL=postgresql://postgres:postgres@db:5432/todoapp`,
+    note: 'Bài này không chạy test — bạn viết file cấu hình và Claude chấm theo danh sách tiêu chí bên trái.'
+  },
+  brief: `<p>Khi chuyển từ SQLite sang PostgreSQL, dự án thôi viết SQL tay và dùng <strong>Prisma</strong> — một ORM sinh sẵn client từ một file mô tả dữ liệu.</p>
+<p>Viết <code>schema.prisma</code> cho ứng dụng todo, gồm bốn phần:</p>
+<ol>
+<li><strong>generator</strong> — khai báo sinh client JavaScript</li>
+<li><strong>datasource</strong> — provider là <code>postgresql</code>, url đọc từ biến môi trường <code>DATABASE_URL</code></li>
+<li><strong>model User</strong> — id tự tăng, username duy nhất, password, và danh sách todo</li>
+<li><strong>model Todo</strong> — id tự tăng, task, completed mặc định false, userId và quan hệ ngược về User</li>
+</ol>
+<p>Vài thuộc tính bạn sẽ cần:</p>
+<table><thead><tr><th>Thuộc tính</th><th>Nghĩa</th></tr></thead><tbody>
+<tr><td><code>@id</code></td><td>Khoá chính</td></tr>
+<tr><td><code>@default(autoincrement())</code></td><td>Database tự cấp số</td></tr>
+<tr><td><code>@unique</code></td><td>Không cho trùng</td></tr>
+<tr><td><code>@default(false)</code></td><td>Giá trị mặc định</td></tr>
+<tr><td><code>@relation(fields: [...], references: [...])</code></td><td>Nối hai model</td></tr>
+<tr><td><code>Todo[]</code></td><td>Phía "nhiều" của quan hệ một–nhiều</td></tr>
+</tbody></table>
+<p class="callout">Quan hệ trong Prisma phải khai ở <strong>cả hai</strong> model: bên <code>Todo</code> giữ khoá ngoại thật (<code>userId</code>) và mô tả quan hệ bằng <code>@relation</code>; bên <code>User</code> chỉ cần một trường <code>todos Todo[]</code>, không tạo ra cột nào trong database. Thiếu một bên thì <code>prisma generate</code> báo lỗi.</p>`,
+  starter: `generator client {
+  // ...
+}
+
+datasource db {
+  // ...
+}
+
+model User {
+  // ...
+}
+
+model Todo {
+  // ...
+}`,
+  hints: [
+    'Kiểu dữ liệu Prisma viết hoa chữ đầu: Int, String, Boolean.',
+    'url = env("DATABASE_URL") là cách đọc biến môi trường trong file này.',
+    'Trường quan hệ bên User không có @relation, nó chỉ là Todo[].'
+  ],
+  rubric: [
+    'Có khối generator client với provider = "prisma-client-js"',
+    'Có khối datasource với provider = "postgresql"',
+    'url đọc từ env("DATABASE_URL"), không viết cứng chuỗi kết nối',
+    'model User có id Int @id @default(autoincrement())',
+    'username có @unique',
+    'model User có trường todos Todo[]',
+    'model Todo có completed Boolean @default(false)',
+    'model Todo có userId Int và trường user User @relation(fields: [userId], references: [id])',
+    'Không còn dấu vết của cú pháp SQL (CREATE TABLE, FOREIGN KEY) trong file'
+  ],
+  solution: `generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String
+  todos    Todo[]
+}
+
+model Todo {
+  id        Int     @id @default(autoincrement())
+  task      String
+  completed Boolean @default(false)
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id])
+}`
+},
+{
+  id: 'node-68', lang: 'node', level: 'Trung bình', topic: 'Prisma', fn: 'buildFindManyArgs',
+  title: 'Dựng tham số cho prisma.todo.findMany',
+  io: {
+    signature: 'buildFindManyArgs(query, userId) → object',
+    params: [
+      ['query', 'object · mặc định {}', 'req.query thô. Các khoá quan tâm: page, size, sort (tên cột, có thể có dấu trừ ở đầu để sắp giảm dần), completed. Mọi giá trị đều là chuỗi.'],
+      ['userId', 'number', 'Id người đang đăng nhập, lấy từ req.userId do authMiddleware gắn vào.']
+    ],
+    returns: ['object', '{ where, orderBy, skip, take } — truyền thẳng được vào prisma.todo.findMany().'],
+    example: `buildFindManyArgs({ page: '2', size: '10', sort: '-id', completed: 'false' }, 7)
+// → { where: { userId: 7, completed: false }, orderBy: { id: 'desc' }, skip: 10, take: 10 }`
+  },
+  brief: `<p>Đây là hàm bạn sẽ viết thật trong <code>todoRoutes.js</code> khi endpoint danh sách cần phân trang và sắp xếp.</p>
+<pre><code>const todos = await prisma.todo.findMany(buildFindManyArgs(req.query, req.userId))</code></pre>
+<p>Quy tắc:</p>
+<ul>
+<li><code>where.userId</code> <strong>luôn</strong> bằng <code>userId</code> truyền vào. Đây là điều kiện không thể thiếu, không phụ thuộc query.</li>
+<li><code>query.completed</code> bằng <code>'true'</code> hoặc <code>'false'</code> → thêm <code>where.completed</code> là boolean. Giá trị khác, hoặc thiếu → không thêm gì.</li>
+<li><code>page</code> mặc định 1, nhỏ nhất 1. <code>size</code> mặc định 20, kẹp trong khoảng 1–100. Giá trị không phải số thì dùng mặc định.</li>
+<li><code>skip = (page - 1) * size</code>, <code>take = size</code></li>
+<li><code>sort</code> là tên cột → <code>orderBy = { &lt;cột&gt;: 'asc' }</code>; có dấu trừ ở đầu → <code>'desc'</code>. Chỉ chấp nhận ba cột <code>id</code>, <code>task</code>, <code>completed</code>; cột lạ hoặc thiếu <code>sort</code> → <code>{ id: 'asc' }</code></li>
+</ul>
+<p class="callout">Để ý <code>where.userId</code> được đặt <em>trước</em>, rồi mới tới các điều kiện từ query. Thứ tự này không đổi kết quả, nhưng nó phản ánh đúng thứ tự ưu tiên trong đầu bạn: ràng buộc bảo mật là nền, mọi thứ khác chỉ là lọc thêm.</p>`,
+  starter: `function buildFindManyArgs(query = {}, userId) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Dựng where bắt đầu từ { userId } rồi thêm dần.',
+    'Math.min và Math.max kẹp size vào khoảng cho phép.',
+    'Danh sách cột được sắp xếp nên là một hằng số, dễ sửa về sau.'
+  ],
+  tests: [
+    { label: 'mặc định', args: [{}, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'phân trang', args: [{ page: '2', size: '10' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 10, take: 10 } },
+    { label: 'lọc completed', args: [{ completed: 'false' }, 7], expect: { where: { userId: 7, completed: false }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'sắp giảm dần', args: [{ sort: '-id' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'desc' }, skip: 0, take: 20 } },
+    { label: 'sắp theo cột khác', args: [{ sort: 'task' }, 7], expect: { where: { userId: 7 }, orderBy: { task: 'asc' }, skip: 0, take: 20 } },
+    { label: 'cột sắp xếp lạ bị bỏ qua', args: [{ sort: 'password' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'size vượt trần bị kẹp', args: [{ size: '5000' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 100 } },
+    { label: 'page âm về 1', args: [{ page: '-3' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'giá trị rác dùng mặc định', args: [{ page: 'abc', size: 'xyz' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'completed giá trị lạ thì không lọc', args: [{ completed: 'co-le' }, 7], expect: { where: { userId: 7 }, orderBy: { id: 'asc' }, skip: 0, take: 20 } },
+    { label: 'userId luôn có mặt', script: `return 'userId' in fn({ completed: 'true' }, 99).where;`, expect: true }
+  ],
+  solution: `function buildFindManyArgs(query = {}, userId) {
+  const SORTABLE = ['id', 'task', 'completed'];
+
+  const num = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && String(value).trim() !== '' ? Math.trunc(parsed) : fallback;
+  };
+
+  const page = Math.max(1, num(query.page, 1));
+  const size = Math.min(100, Math.max(1, num(query.size, 20)));
+
+  const where = { userId };
+  if (query.completed === 'true') where.completed = true;
+  if (query.completed === 'false') where.completed = false;
+
+  let orderBy = { id: 'asc' };
+  if (typeof query.sort === 'string' && query.sort) {
+    const desc = query.sort.startsWith('-');
+    const field = desc ? query.sort.slice(1) : query.sort;
+    if (SORTABLE.includes(field)) orderBy = { [field]: desc ? 'desc' : 'asc' };
+  }
+
+  return { where, orderBy, skip: (page - 1) * size, take: size };
+}`
+},
+{
+  id: 'node-69', lang: 'node', level: 'Trung bình', topic: 'Docker',
+  file: 'Dockerfile', syntax: 'dockerfile',
+  title: 'Viết Dockerfile cho ứng dụng Node',
+  io: {
+    given: `// Cấu trúc dự án:
+//   src/server.js        điểm khởi động
+//   src/routes/...
+//   prisma/schema.prisma
+//   public/index.html
+//   package.json
+//   package-lock.json
+//
+// Server đọc biến môi trường PORT, mặc định 5003.
+// Lệnh chạy ứng dụng: node ./src/server.js`,
+    note: 'Bài này không chạy test — bạn viết file cấu hình và Claude chấm theo danh sách tiêu chí bên trái.'
+  },
+  brief: `<p>"Máy tôi chạy được" là câu nói mà Docker sinh ra để xoá sổ. Một <strong>image</strong> đóng gói hệ điều hành, phiên bản Node, thư viện và code của bạn thành một khối; ai chạy cũng ra kết quả giống nhau.</p>
+<p>Viết <code>Dockerfile</code> cho ứng dụng todo. Mỗi dòng trong file là một <strong>layer</strong>, và Docker lưu cache từng layer — nên thứ tự các dòng quyết định lần build sau nhanh hay chậm.</p>
+<table><thead><tr><th>Lệnh</th><th>Việc nó làm</th></tr></thead><tbody>
+<tr><td><code>FROM</code></td><td>Image nền để bắt đầu</td></tr>
+<tr><td><code>WORKDIR</code></td><td>Thư mục làm việc bên trong container</td></tr>
+<tr><td><code>COPY</code></td><td>Chép file từ máy bạn vào image</td></tr>
+<tr><td><code>RUN</code></td><td>Chạy lệnh <em>lúc build</em></td></tr>
+<tr><td><code>EXPOSE</code></td><td>Ghi chú cổng ứng dụng lắng nghe</td></tr>
+<tr><td><code>CMD</code></td><td>Lệnh chạy <em>lúc khởi động container</em></td></tr>
+</tbody></table>
+<p>Yêu cầu:</p>
+<ul>
+<li>Dùng image nền Node phiên bản cố định và bản <code>alpine</code> cho nhẹ</li>
+<li>Thư mục làm việc là <code>/app</code></li>
+<li><strong>Chép <code>package.json</code> và <code>package-lock.json</code> trước, cài phụ thuộc, rồi mới chép phần code còn lại</strong></li>
+<li>Mở cổng 5003 và chạy <code>node ./src/server.js</code></li>
+<li>Có comment tiếng Việt giải thích vì sao chép package.json trước</li>
+</ul>
+<p class="callout">Điểm quan trọng nhất của bài này là thứ tự hai lệnh <code>COPY</code>. Chép toàn bộ code trước rồi mới <code>npm install</code> thì mỗi lần bạn sửa một dòng trong <code>server.js</code>, Docker phải cài lại toàn bộ thư viện — vài phút chờ cho một ký tự. Chép <code>package*.json</code> trước thì layer cài đặt chỉ chạy lại khi danh sách phụ thuộc thật sự đổi.</p>`,
+  starter: `# Viết Dockerfile ở đây
+FROM `,
+  hints: [
+    'node:22-alpine là image nền gọn, phiên bản cố định.',
+    'COPY package*.json . chép được cả hai file chỉ bằng một dòng.',
+    'CMD dùng dạng mảng JSON: CMD ["node", "./src/server.js"].'
+  ],
+  rubric: [
+    'FROM chỉ định phiên bản Node cụ thể, không dùng tag latest',
+    'Dùng bản alpine hoặc slim để image nhẹ',
+    'Có WORKDIR /app',
+    'COPY package.json (và package-lock.json) đứng TRƯỚC lệnh cài phụ thuộc',
+    'RUN npm install hoặc npm ci để cài phụ thuộc',
+    'COPY phần code còn lại đứng SAU bước cài phụ thuộc',
+    'EXPOSE đúng cổng 5003',
+    'CMD chạy node ./src/server.js, viết ở dạng mảng JSON',
+    'Có comment giải thích vì sao chép package.json trước phần code còn lại'
+  ],
+  solution: `# Image nen: Node 22 ban alpine cho nhe, phien ban co dinh de build lai luon giong nhau
+FROM node:22-alpine
+
+# Thu muc lam viec ben trong container
+WORKDIR /app
+
+# Chep RIENG package.json va package-lock.json truoc.
+# Docker cache tung layer: chung nao hai file nay khong doi thi layer
+# "npm install" ben duoi duoc dung lai, khong phai cai lai tu dau moi lan sua code.
+COPY package*.json .
+
+# Cai phu thuoc
+RUN npm install
+
+# Bay gio moi chep phan code con lai — layer nay doi thuong xuyen
+COPY . .
+
+# Ghi chu cong ma ung dung lang nghe
+EXPOSE 5003
+
+# Lenh chay khi container khoi dong
+CMD ["node", "./src/server.js"]`
+},
+{
+  id: 'node-70', lang: 'node', level: 'Nâng cao', topic: 'Docker', fn: 'countCacheHits',
+  title: 'Docker dùng lại được bao nhiêu layer',
+  io: {
+    signature: 'countCacheHits(steps, changed) → number',
+    params: [
+      ['steps', 'Array<object> · mặc định []', 'Các lệnh trong Dockerfile theo đúng thứ tự. Mỗi lệnh: { name: string, inputs: Array<string> tuỳ chọn — những file mà lệnh này chép vào image }.'],
+      ['changed', 'Array<string> · mặc định []', 'Danh sách file đã thay đổi kể từ lần build trước.']
+    ],
+    returns: ['number', 'Số layer đầu tiên còn dùng lại được từ cache.'],
+    example: `countCacheHits([
+  { name: 'FROM node:22-alpine' },
+  { name: 'COPY package*.json', inputs: ['package.json'] },
+  { name: 'RUN npm install' },
+  { name: 'COPY . .', inputs: ['package.json', 'src/server.js'] }
+], ['src/server.js'])
+// → 3`
+  },
+  brief: `<p>Docker build theo layer, và cache của nó hoạt động theo một quy tắc rất nghiêm: <strong>một layer chỉ được dùng lại khi mọi layer phía trên nó cũng được dùng lại</strong>. Hỏng một mắt xích là mọi thứ bên dưới phải làm lại từ đầu.</p>
+<p>Viết hàm <code>countCacheHits(steps, changed)</code> đếm xem lần build này dùng lại được mấy layer.</p>
+<ul>
+<li>Duyệt <code>steps</code> từ trên xuống</li>
+<li>Một bước <strong>hỏng cache</strong> khi có ít nhất một file trong <code>inputs</code> của nó nằm trong <code>changed</code></li>
+<li>Gặp bước hỏng đầu tiên thì dừng — trả về số bước đã đếm được trước đó</li>
+<li>Bước không có <code>inputs</code> (như <code>FROM</code> hay <code>RUN</code>) không bao giờ tự hỏng, nhưng vẫn bị kéo theo nếu có bước phía trên đã hỏng</li>
+<li>Không file nào đổi → dùng lại toàn bộ</li>
+</ul>
+<p>Hàm này chính là công cụ để trả lời câu hỏi: <em>đặt <code>COPY package*.json</code> ở đâu thì build nhanh nhất?</em> Chạy thử hai thứ tự và so số layer dùng lại được.</p>`,
+  starter: `function countCacheHits(steps = [], changed = []) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Một Set từ changed giúp kiểm tra nhanh và đọc dễ hơn.',
+    'Vòng for thường, gặp bước hỏng thì return ngay chỉ số đang đứng.',
+    'inputs có thể không tồn tại — dùng ?? [] cho gọn.'
+  ],
+  tests: [
+    { label: 'không có gì đổi', args: [[{ name: 'FROM' }, { name: 'COPY', inputs: ['a.js'] }], []], expect: 2 },
+    { label: 'thứ tự tốt: sửa code không phải cài lại', args: [[{ name: 'FROM' }, { name: 'COPY package', inputs: ['package.json'] }, { name: 'RUN npm install' }, { name: 'COPY .', inputs: ['package.json', 'src/server.js'] }], ['src/server.js']], expect: 3 },
+    { label: 'thứ tự xấu: chép hết trước thì phải cài lại', args: [[{ name: 'FROM' }, { name: 'COPY .', inputs: ['package.json', 'src/server.js'] }, { name: 'RUN npm install' }], ['src/server.js']], expect: 1 },
+    { label: 'đổi package.json thì phải cài lại', args: [[{ name: 'FROM' }, { name: 'COPY package', inputs: ['package.json'] }, { name: 'RUN npm install' }, { name: 'COPY .', inputs: ['src/server.js'] }], ['package.json']], expect: 1 },
+    { label: 'hỏng ngay bước đầu', args: [[{ name: 'COPY', inputs: ['a.js'] }, { name: 'RUN' }], ['a.js']], expect: 0 },
+    { label: 'bước không có inputs không tự hỏng', args: [[{ name: 'FROM' }, { name: 'RUN echo' }, { name: 'WORKDIR' }], ['bat-ky.js']], expect: 3 },
+    { label: 'danh sách rỗng', args: [[], ['a.js']], expect: 0 },
+    { label: 'nhiều file đổi', args: [[{ name: 'FROM' }, { name: 'COPY a', inputs: ['a.js'] }, { name: 'COPY b', inputs: ['b.js'] }], ['b.js', 'c.js']], expect: 2 }
+  ],
+  solution: `function countCacheHits(steps = [], changed = []) {
+  const dirty = new Set(changed);
+
+  for (let i = 0; i < steps.length; i++) {
+    const inputs = steps[i].inputs ?? [];
+    if (inputs.some((file) => dirty.has(file))) return i;
+  }
+
+  return steps.length;
+}`
+},
+{
+  id: 'node-71', lang: 'node', level: 'Nâng cao', topic: 'Docker',
+  file: 'docker-compose.yaml', syntax: 'yaml',
+  title: 'Hai container nói chuyện với nhau',
+  io: {
+    given: `# Đã có Dockerfile ở thư mục gốc dự án.
+# Ứng dụng Node lắng nghe cổng 5003 và cần hai biến môi trường:
+#   DATABASE_URL, JWT_SECRET
+#
+# Database: PostgreSQL 16, tên database todoapp,
+# user postgres, mật khẩu postgres.`,
+    note: 'Bài này không chạy test — bạn viết file cấu hình và Claude chấm theo danh sách tiêu chí bên trái.'
+  },
+  brief: `<p>Ứng dụng cần hai thứ chạy cùng lúc: server Node và database PostgreSQL. <strong>Docker Compose</strong> mô tả cả hai trong một file, và một lệnh <code>docker compose up</code> là dựng xong.</p>
+<p>Viết <code>docker-compose.yaml</code> với hai service:</p>
+<ul>
+<li><strong><code>app</code></strong> — build từ Dockerfile ở thư mục hiện tại, ánh xạ cổng 5003 ra máy bạn, nhận hai biến môi trường, và chỉ khởi động sau <code>db</code></li>
+<li><strong><code>db</code></strong> — dùng image PostgreSQL 16, đặt user/password/database, và lưu dữ liệu vào một volume có tên</li>
+</ul>
+<p>Điểm quan trọng nhất là chuỗi kết nối:</p>
+<pre><code>DATABASE_URL=postgresql://postgres:postgres@db:5432/todoapp</code></pre>
+<p>Chữ <code>db</code> trong đó không phải tên máy chủ nào cả — nó là <strong>tên service</strong>. Compose tạo một mạng riêng và mỗi service có tên miền đúng bằng tên của nó. Đây là lý do <code>localhost</code> <em>không</em> dùng được: bên trong container <code>app</code>, <code>localhost</code> trỏ về chính container đó, nơi không có database nào.</p>
+<p>Về volume: không khai báo thì dữ liệu PostgreSQL nằm trong lớp ghi của container, và <code>docker compose down</code> là mất sạch. Một volume có tên giữ dữ liệu lại giữa các lần dựng.</p>
+<p class="warn"><code>depends_on</code> chỉ bảo đảm <em>thứ tự khởi động</em>, không bảo đảm database đã sẵn sàng nhận kết nối. Ứng dụng thật cần thêm healthcheck hoặc tự thử lại khi kết nối hỏng — đây là nguyên nhân của lỗi "connect ECONNREFUSED" ngay lần <code>docker compose up</code> đầu tiên.</p>`,
+  starter: `services:
+  app:
+    # ...
+
+  db:
+    # ...
+
+volumes:
+  # ...`,
+  hints: [
+    'build: . nghĩa là dựng image từ Dockerfile ở thư mục hiện tại.',
+    'ports viết dạng "5003:5003" — cổng máy bạn bên trái, cổng trong container bên phải.',
+    'Volume có tên phải khai báo hai chỗ: trong service, và trong khối volumes ở cuối file.'
+  ],
+  rubric: [
+    'Có đủ hai service app và db',
+    'Service app dùng build: . để dựng từ Dockerfile',
+    'Service app ánh xạ cổng 5003 ra máy chủ',
+    'DATABASE_URL trỏ tới host là "db" — tên service, không phải localhost',
+    'Service app khai báo JWT_SECRET',
+    'Service app có depends_on: db',
+    'Service db dùng image postgres với phiên bản cụ thể, không dùng latest',
+    'Service db đặt POSTGRES_USER, POSTGRES_PASSWORD và POSTGRES_DB',
+    'Dữ liệu PostgreSQL được gắn vào một volume có tên, và volume đó được khai báo ở khối volumes cuối file',
+    'Có comment tiếng Việt giải thích vì sao host là "db" chứ không phải localhost'
+  ],
+  solution: `services:
+  app:
+    build: .
+    container_name: todo-app
+    ports:
+      - "5003:5003"
+    environment:
+      # Host la "db" — dung bang ten service ben duoi.
+      # Compose tao mot mang rieng va dat ten mien theo ten service,
+      # nen "localhost" o day se tro ve chinh container app, noi khong co database.
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/todoapp
+      - JWT_SECRET=doi-chuoi-nay-truoc-khi-deploy
+      - PORT=5003
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todoapp
+    volumes:
+      # Volume co ten: du lieu song sot qua docker compose down
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:`
+},
+{
+  id: 'node-72', lang: 'node', level: 'Trung bình', topic: 'Docker', fn: 'resolveEnvironment',
+  title: 'Biến môi trường của một service',
+  io: {
+    signature: 'resolveEnvironment(service, hostEnv) → object',
+    params: [
+      ['service', 'object · mặc định {}', 'Một service trong docker-compose. Trường environment có thể là mảng chuỗi ("KEY=VALUE" hoặc chỉ "KEY"), hoặc là object, hoặc thiếu hẳn.'],
+      ['hostEnv', 'object · mặc định {}', 'Biến môi trường của máy đang chạy lệnh docker compose. Dùng để thay thế cho ${TEN_BIEN} và cho khoá khai trần.']
+    ],
+    returns: ['object', 'Tên biến → giá trị chuỗi, đúng như container sẽ nhận được.'],
+    example: `resolveEnvironment({ environment: ['PORT=5003', 'JWT_SECRET=\${JWT_SECRET}', 'HOME'] }, { JWT_SECRET: 'abc', HOME: '/root' })
+// → { PORT: '5003', JWT_SECRET: 'abc', HOME: '/root' }`
+  },
+  brief: `<p>Compose cho phép khai biến môi trường theo ba kiểu, và cả ba đều xuất hiện trong dự án thật:</p>
+<table><thead><tr><th>Cách viết</th><th>Nghĩa</th></tr></thead><tbody>
+<tr><td><code>- PORT=5003</code></td><td>Giá trị viết thẳng</td></tr>
+<tr><td><code>- JWT_SECRET=\${JWT_SECRET}</code></td><td>Lấy từ máy đang chạy lệnh — <strong>bí mật không nằm trong file</strong></td></tr>
+<tr><td><code>- HOME</code></td><td>Khai trần: chuyển nguyên biến cùng tên từ máy vào container</td></tr>
+</tbody></table>
+<p>Viết hàm <code>resolveEnvironment(service, hostEnv)</code> tính ra bộ biến cuối cùng.</p>
+<ul>
+<li><code>environment</code> là <strong>mảng</strong>: mỗi phần tử tách ở dấu <code>=</code> đầu tiên</li>
+<li>Phần tử không có dấu <code>=</code> → lấy giá trị cùng tên từ <code>hostEnv</code>. Máy không có biến đó → <strong>bỏ qua hẳn khoá này</strong></li>
+<li>Giá trị dạng <code>\${TEN}</code> → thay bằng <code>hostEnv.TEN</code>; máy không có → chuỗi rỗng</li>
+<li><code>environment</code> là <strong>object</strong>: mỗi giá trị vẫn phải qua bước thay <code>\${...}</code>, và được đổi sang chuỗi</li>
+<li>Thiếu <code>environment</code> → trả <code>{}</code></li>
+<li>Khoá trùng thì phần tử sau thắng</li>
+</ul>
+<p class="warn">Kiểu <code>\${JWT_SECRET}</code> là cách đúng để đưa bí mật vào container: file compose có commit lên Git cũng không lộ gì, vì giá trị thật nằm ở máy chạy lệnh hoặc ở hệ thống quản lý bí mật.</p>`,
+  starter: `function resolveEnvironment(service = {}, hostEnv = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Array.isArray phân biệt hai dạng khai báo.',
+    'Biểu thức chính quy /^\\$\\{(.+)\\}$/ nhận ra dạng ${TEN} và lấy được phần tên.',
+    'Khoá khai trần mà máy không có thì đừng gán undefined — bỏ qua luôn khoá đó.'
+  ],
+  tests: [
+    { label: 'giá trị viết thẳng', args: [{ environment: ['PORT=5003'] }, {}], expect: { PORT: '5003' } },
+    { label: 'thay từ máy chủ', args: [{ environment: ['JWT_SECRET=${JWT_SECRET}'] }, { JWT_SECRET: 'sieu-bi-mat' }], expect: { JWT_SECRET: 'sieu-bi-mat' } },
+    { label: 'máy chủ không có thì thành chuỗi rỗng', args: [{ environment: ['JWT_SECRET=${JWT_SECRET}'] }, {}], expect: { JWT_SECRET: '' } },
+    { label: 'khai trần', args: [{ environment: ['HOME'] }, { HOME: '/root' }], expect: { HOME: '/root' } },
+    { label: 'khai trần mà máy không có thì bỏ qua', args: [{ environment: ['HOME'] }, {}], expect: {} },
+    { label: 'giá trị chứa dấu bằng', args: [{ environment: ['DATABASE_URL=postgresql://u:p@db:5432/app?schema=public'] }, {}], expect: { DATABASE_URL: 'postgresql://u:p@db:5432/app?schema=public' } },
+    { label: 'dạng object', args: [{ environment: { POSTGRES_USER: 'postgres', POSTGRES_DB: 'todoapp' } }, {}], expect: { POSTGRES_USER: 'postgres', POSTGRES_DB: 'todoapp' } },
+    { label: 'object cũng thay biến', args: [{ environment: { SECRET: '${S}' } }, { S: 'x' }], expect: { SECRET: 'x' } },
+    { label: 'object đổi số sang chuỗi', args: [{ environment: { PORT: 5003 } }, {}], expect: { PORT: '5003' } },
+    { label: 'thiếu environment', args: [{}, { A: '1' }], expect: {} },
+    { label: 'khoá trùng thì dòng sau thắng', args: [{ environment: ['PORT=3000', 'PORT=5003'] }, {}], expect: { PORT: '5003' } }
+  ],
+  solution: `function resolveEnvironment(service = {}, hostEnv = {}) {
+  const source = service.environment;
+  if (!source) return {};
+
+  const expand = (text) => {
+    const match = /^\\$\\{(.+)\\}$/.exec(String(text));
+    if (!match) return String(text);
+    return hostEnv[match[1]] ?? '';
+  };
+
+  const result = {};
+
+  if (Array.isArray(source)) {
+    for (const entry of source) {
+      const line = String(entry);
+      const eq = line.indexOf('=');
+
+      if (eq === -1) {
+        if (hostEnv[line] !== undefined) result[line] = String(hostEnv[line]);
+        continue;
+      }
+
+      result[line.slice(0, eq)] = expand(line.slice(eq + 1));
+    }
+    return result;
+  }
+
+  for (const [key, value] of Object.entries(source)) result[key] = expand(value);
+  return result;
+}`
 }
 ];

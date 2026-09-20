@@ -7,6 +7,7 @@ import chapters0610 from './theory/chapters-06-10.js';
 import chapters1115 from './theory/chapters-11-15.js';
 import videoNenTang from './theory/video-01-nen-tang.js';
 import videoExpressDuLieu from './theory/video-02-express-du-lieu.js';
+import videoBaoMatProduction from './theory/video-03-bao-mat-production.js';
 import nodeExercises from './exercises/node.js';
 import nodeVideoExercises from './exercises/node-video.js';
 import dotnetExercises from './exercises/dotnet.js';
@@ -14,7 +15,7 @@ import glossary from './reference/glossary.js';
 import roadmap from './reference/roadmap.js';
 import libraries from './reference/libraries.js';
 
-const ALL_CHAPTERS = [...chapters0105, ...chapters0610, ...chapters1115, ...videoNenTang, ...videoExpressDuLieu];
+const ALL_CHAPTERS = [...chapters0105, ...chapters0610, ...chapters1115, ...videoNenTang, ...videoExpressDuLieu, ...videoBaoMatProduction];
 
 /**
  * Thứ tự học, quyết định ở đây chứ không phải ở tên file.
@@ -30,11 +31,11 @@ const ORDER = [
   // Phần 2 — Node.js và Express
   'n2', 'n3', 'n4', 'n5', 'c11',
   // Phần 3 — kiến trúc và dữ liệu
-  'c3', 'n6', 'c4', 'c5',
+  'c3', 'n6', 'c4', 'c5', 'n10',
   // Phần 4 — bảo mật
-  'c6',
+  'n7', 'n8', 'n9', 'c6',
   // Phần 5 — chất lượng và vận hành
-  'c7', 'c8', 'c9', 'c10',
+  'c7', 'c8', 'c9', 'n11', 'c10',
   // Phần 6 — nền tảng thứ hai và lộ trình
   'c12', 'c13', 'c14', 'c15'
 ];
