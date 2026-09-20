@@ -1086,5 +1086,920 @@ contentTypeFor('README')       // → 'application/octet-stream'`
   const ext = name.slice(dot + 1).toLowerCase();
   return TYPES[ext] ?? 'application/octet-stream';
 }`
+},
+{
+  id: 'node-44', lang: 'node', level: 'Trung bình', topic: 'Middleware', fn: 'createPipeline',
+  title: 'Dựng lại app.use của Express',
+  io: {
+    signature: 'createPipeline() → { use, run }',
+    params: [
+      ['(không có tham số)', '—', 'Hàm tự tạo một pipeline rỗng.'],
+      ['use(fn)', 'function', 'Đăng ký một middleware dạng (req, res, next). Gọi được nhiều lần; thứ tự đăng ký là thứ tự chạy. Trả về chính pipeline để nối chuỗi.'],
+      ['run(req, res)', 'function', 'Chạy chuỗi middleware với req và res truyền vào. Trả về số middleware đã thực sự chạy.']
+    ],
+    returns: ['object', 'use(fn) trả về chính pipeline · run(req, res) trả về number.'],
+    example: `const app = createPipeline();
+app.use((req, res, next) => { req.userId = 7; next(); });
+app.use((req, res) => { res.body = req.userId; });
+app.run({}, {});   // → 2`
+  },
+  brief: `<p><code>app.use(express.json())</code> nhìn như một lời gọi hàm bình thường, nhưng nó đang xếp hàng: mỗi <code>use</code> thêm một mắt xích vào chuỗi, và request đi qua từng mắt xích theo đúng thứ tự bạn đã xếp.</p>
+<p>Viết hàm <code>createPipeline()</code> dựng lại cơ chế đó.</p>
+<ul>
+<li><code>use(fn)</code> thêm middleware vào cuối chuỗi và trả về chính pipeline, nhờ vậy nối được <code>p.use(a).use(b)</code></li>
+<li><code>run(req, res)</code> gọi middleware đầu tiên với ba tham số <code>(req, res, next)</code></li>
+<li>Middleware gọi <code>next()</code> thì mắt xích sau chạy; <strong>không</strong> gọi thì chuỗi dừng ngay tại đó</li>
+<li><code>run</code> trả về <strong>số middleware đã thực sự chạy</strong></li>
+<li>Chuỗi rỗng thì <code>run</code> trả về 0</li>
+</ul>
+<p>Mọi middleware ở bài này đều đồng bộ, nên không cần <code>async</code>.</p>`,
+  starter: `function createPipeline() {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Giữ một mảng middleware và một hàm đệ quy dispatch(i).',
+    'Đếm số lần đã chạy bằng một biến, tăng ngay trước khi gọi middleware.',
+    'next chính là () => dispatch(i + 1) — đừng truyền thẳng dispatch, nếu không middleware gọi next() sẽ chạy lại chính nó.'
+  ],
+  tests: [
+    { label: 'chuỗi rỗng', script: `return fn().run({}, {});`, expect: 0 },
+    { label: 'chạy đủ chuỗi', script: `const p = fn();
+p.use((req, res, next) => next());
+p.use((req, res, next) => next());
+return p.run({}, {});`, expect: 2 },
+    { label: 'không gọi next thì dừng', script: `const p = fn();
+p.use((req, res, next) => next());
+p.use(() => {});
+p.use((req, res, next) => next());
+return p.run({}, {});`, expect: 2 },
+    { label: 'chạy đúng thứ tự', script: `const log = [];
+const p = fn();
+p.use((req, res, next) => { log.push('a'); next(); });
+p.use((req, res, next) => { log.push('b'); next(); });
+p.run({}, {});
+return log;`, expect: ['a', 'b'] },
+    { label: 'middleware gắn thêm dữ liệu vào req', script: `const p = fn();
+p.use((req, res, next) => { req.userId = 7; next(); });
+const req = {};
+p.run(req, {});
+return req.userId;`, expect: 7 },
+    { label: 'use nối chuỗi được', script: `const p = fn();
+return p.use(() => {}) === p;`, expect: true },
+    { label: 'dừng ngay từ mắt xích đầu', script: `const log = [];
+const p = fn();
+p.use(() => { log.push('chan'); });
+p.use(() => { log.push('khong-bao-gio'); });
+p.run({}, {});
+return log;`, expect: ['chan'] }
+  ],
+  solution: `function createPipeline() {
+  const stack = [];
+
+  const pipeline = {
+    use(fn) { stack.push(fn); return pipeline; },
+    run(req, res) {
+      let ran = 0;
+      const dispatch = (i) => {
+        const middleware = stack[i];
+        if (!middleware) return;
+        ran++;
+        middleware(req, res, () => dispatch(i + 1));
+      };
+      dispatch(0);
+      return ran;
+    },
+  };
+
+  return pipeline;
+}`
+},
+{
+  id: 'node-45', lang: 'node', level: 'Trung bình', topic: 'Middleware', fn: 'handleError',
+  title: 'Middleware xử lý lỗi bốn tham số',
+  io: {
+    signature: 'handleError(err, req, res, next) → void',
+    params: [
+      ['err', 'object', 'Lỗi bắt được. Không có hình dạng cố định. Có thể có: status (number), name (string, ví dụ "ValidationError"), message (string), details (mảng), stack (string).'],
+      ['req', 'object', 'Request đang xử lý. Chỉ cần dùng req.traceId (string, có thể thiếu).'],
+      ['res', 'object', 'Response kiểu Express: status(code) trả về chính nó, json(data).'],
+      ['next', 'function', 'Không dùng tới, nhưng BẮT BUỘC khai báo — Express nhận ra middleware xử lý lỗi bằng cách đếm số tham số.']
+    ],
+    returns: ['void', 'Hàm không trả gì; nó gọi res.status(...).json(...).'],
+    example: `handleError({ status: 404, message: 'Khong thay todo' }, req, res, next)
+// gọi res.status(404).json({ message: 'Khong thay todo', traceId: '...' })`
+  },
+  brief: `<p>Express phân biệt middleware thường với middleware xử lý lỗi bằng một chi tiết kỳ lạ: <strong>số lượng tham số</strong>. Bốn tham số <code>(err, req, res, next)</code> thì nó là bộ xử lý lỗi; ba tham số thì không. Viết thiếu <code>next</code> là middleware của bạn sẽ không bao giờ được gọi, dù code bên trong hoàn toàn đúng.</p>
+<p>Viết hàm <code>handleError(err, req, res, next)</code> chuyển mọi loại lỗi thành một response thống nhất.</p>
+<table><thead><tr><th>Lỗi</th><th>Status</th><th>Body</th></tr></thead><tbody>
+<tr><td><code>err.name === 'ValidationError'</code></td><td>422</td><td><code>{ message: err.message, errors: err.details ?? [], traceId }</code></td></tr>
+<tr><td><code>err.status</code> là số nguyên từ 400 tới 499</td><td>chính nó</td><td><code>{ message: err.message, traceId }</code></td></tr>
+<tr><td>Mọi trường hợp còn lại</td><td>500</td><td><code>{ message: 'Lỗi hệ thống', traceId }</code></td></tr>
+</tbody></table>
+<p><code>traceId</code> lấy từ <code>req.traceId</code>, thiếu thì dùng chuỗi rỗng.</p>
+<p class="warn">Nhánh 500 <strong>không</strong> được để lộ <code>err.message</code>. Thông báo lỗi nội bộ thường chứa tên bảng, đường dẫn file, có khi cả chuỗi kết nối database — đủ để người tò mò vẽ lại hệ thống của bạn. Người dùng chỉ cần biết "có lỗi"; chi tiết thì nằm trong log, tra bằng <code>traceId</code>.</p>`,
+  starter: `function handleError(err, req, res, next) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Xét ValidationError trước, vì một lỗi validation cũng có thể mang status 400.',
+    'Number.isInteger loại được cả undefined lẫn chuỗi "404".',
+    'traceId lấy một lần ở đầu hàm rồi dùng lại cho cả ba nhánh.'
+  ],
+  tests: [
+    { label: 'lỗi validation', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ name: 'ValidationError', message: 'Thieu truong', details: [{ field: 'task' }] }, { traceId: 't1' }, res, () => {});
+return log;`, expect: [422, { message: 'Thieu truong', errors: [{ field: 'task' }], traceId: 't1' }] },
+    { label: 'validation không có details', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ name: 'ValidationError', message: 'Sai' }, { traceId: 't2' }, res, () => {});
+return log;`, expect: [422, { message: 'Sai', errors: [], traceId: 't2' }] },
+    { label: 'lỗi 404', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ status: 404, message: 'Khong thay todo' }, { traceId: 't3' }, res, () => {});
+return log;`, expect: [404, { message: 'Khong thay todo', traceId: 't3' }] },
+    { label: 'lỗi lạ bị giấu chi tiết', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ message: 'connect ECONNREFUSED 10.0.0.5:5432', stack: 'at db.js:12' }, { traceId: 't4' }, res, () => {});
+return log;`, expect: [500, { message: 'Lỗi hệ thống', traceId: 't4' }] },
+    { label: 'status 500 khai sẵn vẫn bị giấu', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ status: 500, message: 'chi tiet noi bo' }, {}, res, () => {});
+return log;`, expect: [500, { message: 'Lỗi hệ thống', traceId: '' }] },
+    { label: 'thiếu traceId thì dùng chuỗi rỗng', script: `const log = [];
+const res = { status(c) { log.push(c); return res; }, json(d) { log.push(d); return res; } };
+fn({ status: 401, message: 'Chua dang nhap' }, {}, res, () => {});
+return log;`, expect: [401, { message: 'Chua dang nhap', traceId: '' }] },
+    { label: 'hàm phải khai báo đủ bốn tham số', script: `return fn.length;`, expect: 4 }
+  ],
+  solution: `function handleError(err, req, res, next) {
+  const traceId = (req && req.traceId) || '';
+  const safe = err || {};
+
+  if (safe.name === 'ValidationError') {
+    res.status(422).json({
+      message: safe.message,
+      errors: Array.isArray(safe.details) ? safe.details : [],
+      traceId,
+    });
+    return;
+  }
+
+  if (Number.isInteger(safe.status) && safe.status >= 400 && safe.status <= 499) {
+    res.status(safe.status).json({ message: safe.message, traceId });
+    return;
+  }
+
+  res.status(500).json({ message: 'Lỗi hệ thống', traceId });
+}`
+},
+{
+  id: 'node-46', lang: 'node', level: 'Nâng cao', topic: 'Router', fn: 'createRouter',
+  title: 'Dựng lại express.Router()',
+  io: {
+    signature: 'createRouter() → { get, post, put, delete, handle }',
+    params: [
+      ['(không có tham số)', '—', 'Tạo một router rỗng.'],
+      ['get / post / put / delete (path, handler)', 'function', 'Đăng ký một endpoint. path là chuỗi bắt đầu bằng dấu gạch chéo, có thể chứa tham số dạng :ten. Trả về chính router để nối chuỗi.'],
+      ['handle(method, path)', 'function', 'Tìm endpoint khớp rồi gọi handler của nó.']
+    ],
+    returns: ['object',
+      'handle(method, path) trả về { handler, params } khi khớp, hoặc null khi không có endpoint nào nhận.'],
+    example: `const router = createRouter();
+router.get('/:id', (params) => 'todo ' + params.id);
+router.handle('GET', '/7');
+// → { handler: [Function], params: { id: '7' } }`
+  },
+  brief: `<p>Trong dự án của khoá học, <code>authRoutes.js</code> và <code>todoRoutes.js</code> đều bắt đầu bằng <code>const router = express.Router()</code>. Router là một ứng dụng thu nhỏ: nó giữ bảng endpoint riêng, và sau này được gắn vào app tại một đường dẫn gốc.</p>
+<p>Viết hàm <code>createRouter()</code> dựng lại phần lõi.</p>
+<ul>
+<li>Bốn phương thức <code>get</code>, <code>post</code>, <code>put</code>, <code>delete</code>, mỗi cái nhận <code>(path, handler)</code> và trả về chính router</li>
+<li><code>handle(method, path)</code> duyệt các endpoint theo <strong>đúng thứ tự đăng ký</strong> và lấy cái khớp <strong>đầu tiên</strong></li>
+<li>Khớp nghĩa là: cùng method (không phân biệt hoa thường), cùng số đoạn đường dẫn, và mỗi đoạn hoặc giống hệt hoặc là tham số dạng <code>:ten</code></li>
+<li>Khớp thì trả về <code>{ handler, params }</code>; <code>params</code> là object các tham số, giá trị luôn là chuỗi</li>
+<li>Không khớp thì trả về <code>null</code></li>
+</ul>
+<p class="callout">Chi tiết "cái khớp đầu tiên thắng" giải thích một lỗi rất hay gặp: đăng ký <code>/:id</code> trước <code>/search</code> thì request tới <code>/search</code> sẽ rơi vào <code>/:id</code> với <code>id = 'search'</code>. Route cụ thể phải đặt trước route có tham số.</p>`,
+  starter: `function createRouter() {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Một mảng routes với { method, segments, handler } là đủ.',
+    'Tách path bằng split("/") ngay lúc đăng ký để khỏi tách lại mỗi lần handle.',
+    'Viết một hàm phụ so khớp hai mảng đoạn và trả về params hoặc null.'
+  ],
+  tests: [
+    { label: 'route tĩnh', script: `const r = fn();
+r.get('/health', () => 'ok');
+const m = r.handle('GET', '/health');
+return m.handler();`, expect: 'ok' },
+    { label: 'không khớp trả null', script: `const r = fn();
+r.get('/health', () => 'ok');
+return r.handle('GET', '/healthz');`, expect: null },
+    { label: 'sai method trả null', script: `const r = fn();
+r.get('/health', () => 'ok');
+return r.handle('POST', '/health');`, expect: null },
+    { label: 'method không phân biệt hoa thường', script: `const r = fn();
+r.get('/health', () => 'ok');
+return r.handle('get', '/health') !== null;`, expect: true },
+    { label: 'lấy tham số', script: `const r = fn();
+r.put('/:id', () => 'ok');
+return r.handle('PUT', '/42').params;`, expect: { id: '42' } },
+    { label: 'nhiều tham số', script: `const r = fn();
+r.get('/:userId/todos/:todoId', () => 'ok');
+return r.handle('GET', '/7/todos/42').params;`, expect: { userId: '7', todoId: '42' } },
+    { label: 'khác số đoạn thì không khớp', script: `const r = fn();
+r.get('/:id', () => 'ok');
+return r.handle('GET', '/7/extra');`, expect: null },
+    { label: 'route đăng ký trước thắng', script: `const r = fn();
+r.get('/:id', () => 'tham-so');
+r.get('/search', () => 'cu-the');
+return r.handle('GET', '/search').handler();`, expect: 'tham-so' },
+    { label: 'nối chuỗi được', script: `const r = fn();
+return r.get('/a', () => {}) === r;`, expect: true },
+    { label: 'gọi handler kèm params', script: `const r = fn();
+r.get('/:id', (params) => 'todo ' + params.id);
+const m = r.handle('GET', '/9');
+return m.handler(m.params);`, expect: 'todo 9' }
+  ],
+  solution: `function createRouter() {
+  const routes = [];
+
+  const match = (segments, parts) => {
+    if (segments.length !== parts.length) return null;
+    const params = {};
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i].startsWith(':')) params[segments[i].slice(1)] = parts[i];
+      else if (segments[i] !== parts[i]) return null;
+    }
+    return params;
+  };
+
+  const add = (method) => (path, handler) => {
+    routes.push({ method, segments: path.split('/'), handler });
+    return router;
+  };
+
+  const router = {
+    get: add('GET'),
+    post: add('POST'),
+    put: add('PUT'),
+    delete: add('DELETE'),
+    handle(method, path) {
+      const wanted = String(method).toUpperCase();
+      const parts = String(path).split('/');
+      for (const route of routes) {
+        if (route.method !== wanted) continue;
+        const params = match(route.segments, parts);
+        if (params) return { handler: route.handler, params };
+      }
+      return null;
+    },
+  };
+
+  return router;
+}`
+},
+{
+  id: 'node-47', lang: 'node', level: 'Trung bình', topic: 'Router', fn: 'mountRouter',
+  title: 'Gắn router vào một tiền tố đường dẫn',
+  io: {
+    signature: 'mountRouter(mounts, path) → object | null',
+    params: [
+      ['mounts', 'Array<object> · mặc định []', 'Danh sách router đã gắn, mỗi phần tử là { prefix: string bắt đầu bằng dấu gạch chéo, router: bất kỳ }. Thứ tự trong mảng là thứ tự đăng ký.'],
+      ['path', 'string', 'Đường dẫn đầy đủ của request, ví dụ "/todos/42".']
+    ],
+    returns: ['object | null',
+      '{ router, rest } — router khớp và phần đường dẫn còn lại sau khi cắt tiền tố (luôn bắt đầu bằng dấu gạch chéo). Không khớp thì null.'],
+    example: `mountRouter([{ prefix: '/todos', router: todoRoutes }], '/todos/42')
+// → { router: todoRoutes, rest: '/42' }`
+  },
+  brief: `<p>Trong <code>server.js</code> của khoá học có hai dòng:</p>
+<pre><code>app.use('/auth', authRoutes)
+app.use('/todos', authMiddleware, todoRoutes)</code></pre>
+<p>Chúng nói: mọi request bắt đầu bằng <code>/auth</code> thì giao cho <code>authRoutes</code>, và router đó chỉ nhìn thấy <em>phần còn lại</em> của đường dẫn. Nhờ vậy bên trong <code>authRoutes.js</code> bạn viết <code>router.post('/register')</code> chứ không phải <code>/auth/register</code>.</p>
+<p>Viết hàm <code>mountRouter(mounts, path)</code> làm đúng phép cắt đó.</p>
+<ul>
+<li>Một mount khớp khi <code>path</code> bằng đúng <code>prefix</code>, hoặc bắt đầu bằng <code>prefix + '/'</code></li>
+<li>Khớp nhiều mount thì lấy cái <strong>đăng ký trước</strong></li>
+<li><code>rest</code> là phần sau tiền tố. Cắt xong mà rỗng thì <code>rest</code> là <code>'/'</code></li>
+<li>Không mount nào khớp → <code>null</code></li>
+</ul>
+<p>Chú ý cái bẫy: <code>/todos</code> <strong>không</strong> được khớp với <code>/todosaurus</code>. Chỉ kiểm tra <code>startsWith(prefix)</code> là dính bẫy này ngay.</p>`,
+  starter: `function mountRouter(mounts = [], path) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Hai điều kiện khớp: bằng đúng prefix, hoặc startsWith(prefix + "/").',
+    'rest = path.slice(prefix.length) rồi kiểm tra rỗng.',
+    'Dùng vòng for thường để trả về ngay khi gặp mount đầu tiên khớp.'
+  ],
+  tests: [
+    { label: 'khớp và cắt tiền tố', script: `const r = { name: 'todos' };
+return fn([{ prefix: '/todos', router: r }], '/todos/42');`, expect: { router: { name: 'todos' }, rest: '/42' } },
+    { label: 'khớp đúng tiền tố thì rest là dấu gạch chéo', script: `const r = { name: 'todos' };
+return fn([{ prefix: '/todos', router: r }], '/todos');`, expect: { router: { name: 'todos' }, rest: '/' } },
+    { label: 'đường dẫn sâu', script: `const r = { name: 'auth' };
+return fn([{ prefix: '/auth', router: r }], '/auth/login/extra').rest;`, expect: '/login/extra' },
+    { label: 'không khớp tiền tố khác', script: `return fn([{ prefix: '/todos', router: {} }], '/auth/login');`, expect: null },
+    { label: 'không được khớp nửa chừng một từ', script: `return fn([{ prefix: '/todos', router: {} }], '/todosaurus');`, expect: null },
+    { label: 'mount đăng ký trước thắng', script: `return fn([{ prefix: '/a', router: { n: 1 } }, { prefix: '/a', router: { n: 2 } }], '/a/b').router;`, expect: { n: 1 } },
+    { label: 'danh sách rỗng', script: `return fn([], '/todos');`, expect: null }
+  ],
+  solution: `function mountRouter(mounts = [], path) {
+  const url = String(path);
+
+  for (const mount of mounts) {
+    const { prefix } = mount;
+    const exact = url === prefix;
+    const deeper = url.startsWith(prefix + '/');
+    if (!exact && !deeper) continue;
+
+    const rest = url.slice(prefix.length);
+    return { router: mount.router, rest: rest === '' ? '/' : rest };
+  }
+
+  return null;
+}`
+},
+{
+  id: 'node-48', lang: 'node', level: 'Nâng cao', topic: 'Router', fn: 'findHandler',
+  title: 'Thứ tự route và route bắt tất cả',
+  io: {
+    signature: 'findHandler(routes, method, path) → object | null',
+    params: [
+      ['routes', 'Array<object> · mặc định []', 'Bảng route theo thứ tự đăng ký. Mỗi phần tử: { method: string, path: string, handler: bất kỳ }. path có thể chứa đoạn tham số ":ten" và đoạn bắt tất cả "*" (chỉ đứng ở cuối).'],
+      ['method', 'string', 'Method của request, ví dụ "GET". Không phân biệt hoa thường.'],
+      ['path', 'string', 'Đường dẫn của request, ví dụ "/todos/42".']
+    ],
+    returns: ['object | null',
+      '{ handler, params } của route khớp đầu tiên. Route có "*" đặt phần đuôi đã khớp vào params.rest. Không khớp route nào → null.'],
+    example: `findHandler([{ method: 'GET', path: '/files/*', handler: 'static' }], 'GET', '/files/css/app.css')
+// → { handler: 'static', params: { rest: 'css/app.css' } }`
+  },
+  brief: `<p>Express duyệt bảng route từ trên xuống và dừng ở cái khớp đầu tiên. Hệ quả là <strong>thứ tự khai báo quan trọng hơn độ cụ thể</strong> — khác hẳn thói quen của nhiều ngôn ngữ khác.</p>
+<p>Viết hàm <code>findHandler(routes, method, path)</code> theo ba loại đoạn đường dẫn:</p>
+<table><thead><tr><th>Đoạn</th><th>Khớp với</th><th>Ghi vào params</th></tr></thead><tbody>
+<tr><td>Chữ thường, ví dụ <code>todos</code></td><td>Đúng chữ đó</td><td>Không</td></tr>
+<tr><td><code>:ten</code></td><td>Một đoạn bất kỳ</td><td><code>params.ten</code></td></tr>
+<tr><td><code>*</code> (chỉ ở cuối)</td><td>Toàn bộ phần còn lại, kể cả nhiều đoạn</td><td><code>params.rest</code></td></tr>
+</tbody></table>
+<ul>
+<li>Không có <code>*</code> thì số đoạn phải bằng nhau</li>
+<li><code>*</code> khớp cả khi phần còn lại rỗng — khi đó <code>params.rest</code> là chuỗi rỗng</li>
+<li>Method phải khớp, không phân biệt hoa thường</li>
+<li>Không route nào nhận → <code>null</code></li>
+</ul>`,
+  starter: `function findHandler(routes = [], method, path) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Bỏ đoạn rỗng đầu tiên bằng cách tách rồi filter, hoặc nhớ rằng "/a".split("/") cho ["", "a"].',
+    'Gặp "*" thì ghép mọi đoạn còn lại của request bằng join("/") rồi dừng vòng lặp.',
+    'Viết phép so khớp thành một hàm phụ trả về params hoặc null, vòng ngoài chỉ lo thứ tự.'
+  ],
+  tests: [
+    { label: 'route tĩnh', script: `return fn([{ method: 'GET', path: '/health', handler: 'h' }], 'GET', '/health');`, expect: { handler: 'h', params: {} } },
+    { label: 'tham số', script: `return fn([{ method: 'GET', path: '/todos/:id', handler: 'h' }], 'GET', '/todos/42').params;`, expect: { id: '42' } },
+    { label: 'cụ thể đặt trước thì thắng', script: `return fn([
+  { method: 'GET', path: '/todos/search', handler: 'cu-the' },
+  { method: 'GET', path: '/todos/:id', handler: 'tham-so' }
+], 'GET', '/todos/search').handler;`, expect: 'cu-the' },
+    { label: 'tham số đặt trước thì nuốt mất route cụ thể', script: `return fn([
+  { method: 'GET', path: '/todos/:id', handler: 'tham-so' },
+  { method: 'GET', path: '/todos/search', handler: 'cu-the' }
+], 'GET', '/todos/search').handler;`, expect: 'tham-so' },
+    { label: 'sao bắt nhiều đoạn', script: `return fn([{ method: 'GET', path: '/files/*', handler: 'static' }], 'GET', '/files/css/app.css').params;`, expect: { rest: 'css/app.css' } },
+    { label: 'sao khớp cả phần rỗng', script: `return fn([{ method: 'GET', path: '/files/*', handler: 'static' }], 'GET', '/files').params;`, expect: { rest: '' } },
+    { label: 'sai method', script: `return fn([{ method: 'POST', path: '/todos', handler: 'h' }], 'GET', '/todos');`, expect: null },
+    { label: 'khác số đoạn khi không có sao', script: `return fn([{ method: 'GET', path: '/todos/:id', handler: 'h' }], 'GET', '/todos/42/extra');`, expect: null },
+    { label: 'bảng rỗng', script: `return fn([], 'GET', '/');`, expect: null },
+    { label: 'route bắt tất cả đặt cuối làm trang 404', script: `return fn([
+  { method: 'GET', path: '/health', handler: 'health' },
+  { method: 'GET', path: '/*', handler: 'not-found' }
+], 'GET', '/linh/tinh').handler;`, expect: 'not-found' }
+  ],
+  solution: `function findHandler(routes = [], method, path) {
+  const wanted = String(method).toUpperCase();
+  const parts = String(path).split('/').filter(Boolean);
+
+  const match = (routePath) => {
+    const segments = String(routePath).split('/').filter(Boolean);
+    const params = {};
+
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i] === '*') {
+        params.rest = parts.slice(i).join('/');
+        return params;
+      }
+      if (i >= parts.length) return null;
+      if (segments[i].startsWith(':')) params[segments[i].slice(1)] = parts[i];
+      else if (segments[i] !== parts[i]) return null;
+    }
+
+    return segments.length === parts.length ? params : null;
+  };
+
+  for (const route of routes) {
+    if (String(route.method).toUpperCase() !== wanted) continue;
+    const params = match(route.path);
+    if (params) return { handler: route.handler, params };
+  }
+
+  return null;
+}`
+},
+{
+  id: 'node-49', lang: 'node', level: 'Trung bình', topic: 'SQLite', fn: 'createTableSql',
+  title: 'Sinh câu lệnh CREATE TABLE',
+  io: {
+    signature: 'createTableSql(table, columns) → string',
+    params: [
+      ['table', 'string', 'Tên bảng. Chỉ được gồm chữ, số và dấu gạch dưới, nếu không thì ném lỗi.'],
+      ['columns', 'Array<object> · mặc định []', 'Danh sách cột theo thứ tự. Mỗi cột: { name: string, type: string ("INTEGER" | "TEXT" | "BOOLEAN" | "REAL"), pk: boolean tuỳ chọn, unique: boolean tuỳ chọn, notNull: boolean tuỳ chọn, default: giá trị tuỳ chọn, references: chuỗi "bang(cot)" tuỳ chọn }.']
+    ],
+    returns: ['string',
+      'Câu lệnh CREATE TABLE một dòng. Tên bảng hoặc tên cột sai định dạng, hoặc danh sách cột rỗng → ném Error("tên không hợp lệ") hoặc Error("không có cột nào").'],
+    example: `createTableSql('users', [
+  { name: 'id', type: 'INTEGER', pk: true },
+  { name: 'username', type: 'TEXT', unique: true }
+])
+// → 'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE)'`
+  },
+  brief: `<p>Bảng <code>users</code> và <code>todos</code> trong dự án của khoá học được tạo bằng hai câu <code>db.exec</code>. Bài này sinh những câu lệnh đó từ mô tả cột, để bạn thấy rõ từng ràng buộc làm gì.</p>
+<p>Ghép các mảnh theo đúng thứ tự sau cho mỗi cột:</p>
+<pre>&lt;tên&gt; &lt;KIỂU&gt; [PRIMARY KEY AUTOINCREMENT] [UNIQUE] [NOT NULL] [DEFAULT &lt;giá trị&gt;] [REFERENCES &lt;bảng(cột)&gt;]</pre>
+<ul>
+<li><code>pk: true</code> → thêm <code>PRIMARY KEY AUTOINCREMENT</code></li>
+<li><code>unique: true</code> → thêm <code>UNIQUE</code></li>
+<li><code>notNull: true</code> → thêm <code>NOT NULL</code></li>
+<li><code>default</code> có mặt → thêm <code>DEFAULT x</code>. Giá trị là chuỗi thì bọc trong nháy đơn; số và boolean thì để trần (boolean viết thành 1 hoặc 0)</li>
+<li><code>references</code> có mặt → thêm <code>REFERENCES bang(cot)</code></li>
+</ul>
+<p>Các cột nối nhau bằng dấu phẩy và một dấu cách, đặt trong ngoặc tròn sau tên bảng.</p>
+<p class="warn">Tên bảng và tên cột <strong>không tham số hoá được</strong> — chúng là một phần cấu trúc câu lệnh, không phải dữ liệu. Vì vậy chúng phải được kiểm tra bằng tay: chỉ cho phép chữ, số và dấu gạch dưới. Sai thì ném <code>Error('tên không hợp lệ')</code>. Danh sách cột rỗng thì ném <code>Error('không có cột nào')</code>.</p>`,
+  starter: `function createTableSql(table, columns = []) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Kiểm tra tên bảng và mọi tên cột bằng /^[A-Za-z0-9_]+$/ trước khi ghép chuỗi.',
+    'Dùng "default" in column để biết cột có khai báo giá trị mặc định hay không — chỉ so sánh với undefined sẽ bỏ sót giá trị 0.',
+    'Dựng mảng mảnh cho từng cột rồi join(" "), sạch hơn nối chuỗi có điều kiện.'
+  ],
+  tests: [
+    { label: 'bảng users', args: ['users', [{ name: 'id', type: 'INTEGER', pk: true }, { name: 'username', type: 'TEXT', unique: true }, { name: 'password', type: 'TEXT' }]], expect: 'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)' },
+    { label: 'khoá ngoại và giá trị mặc định', args: ['todos', [{ name: 'id', type: 'INTEGER', pk: true }, { name: 'user_id', type: 'INTEGER', references: 'users(id)' }, { name: 'task', type: 'TEXT', notNull: true }, { name: 'completed', type: 'BOOLEAN', default: false }]], expect: 'CREATE TABLE todos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id), task TEXT NOT NULL, completed BOOLEAN DEFAULT 0)' },
+    { label: 'mặc định là chuỗi thì bọc nháy', args: ['notes', [{ name: 'status', type: 'TEXT', default: 'moi' }]], expect: "CREATE TABLE notes (status TEXT DEFAULT 'moi')" },
+    { label: 'mặc định là số 0 vẫn được ghi', args: ['stats', [{ name: 'views', type: 'INTEGER', default: 0 }]], expect: 'CREATE TABLE stats (views INTEGER DEFAULT 0)' },
+    { label: 'tên bảng có ký tự lạ', script: `try { fn('users; DROP TABLE x', [{ name: 'id', type: 'INTEGER' }]); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' },
+    { label: 'tên cột có ký tự lạ', script: `try { fn('users', [{ name: 'a b', type: 'TEXT' }]); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' },
+    { label: 'không có cột nào', script: `try { fn('users', []); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'không có cột nào' }
+  ],
+  solution: `function createTableSql(table, columns = []) {
+  const safe = /^[A-Za-z0-9_]+$/;
+  if (!safe.test(String(table))) throw new Error('tên không hợp lệ');
+  if (columns.length === 0) throw new Error('không có cột nào');
+
+  const parts = columns.map((column) => {
+    if (!safe.test(String(column.name))) throw new Error('tên không hợp lệ');
+
+    const pieces = [column.name, column.type];
+    if (column.pk) pieces.push('PRIMARY KEY AUTOINCREMENT');
+    if (column.unique) pieces.push('UNIQUE');
+    if (column.notNull) pieces.push('NOT NULL');
+    if ('default' in column) {
+      const value = column.default;
+      let text;
+      if (typeof value === 'string') text = "'" + value + "'";
+      else if (typeof value === 'boolean') text = value ? '1' : '0';
+      else text = String(value);
+      pieces.push('DEFAULT ' + text);
+    }
+    if (column.references) pieces.push('REFERENCES ' + column.references);
+
+    return pieces.join(' ');
+  });
+
+  return 'CREATE TABLE ' + table + ' (' + parts.join(', ') + ')';
+}`
+},
+{
+  id: 'node-50', lang: 'node', level: 'Trung bình', topic: 'SQLite', fn: 'buildSelect',
+  title: 'Dựng câu SELECT tham số hoá',
+  io: {
+    signature: 'buildSelect(query) → { sql, values }',
+    params: [
+      ['query', 'object', 'Mô tả truy vấn: table (string, bắt buộc), columns (mảng tên cột, thiếu thì lấy tất cả), where (object: cột → giá trị, thiếu thì không lọc), orderBy (string tên cột, tuỳ chọn), desc (boolean, tuỳ chọn), limit (number, tuỳ chọn), offset (number, tuỳ chọn).']
+    ],
+    returns: ['object',
+      '{ sql: string, values: Array } — giá trị lọc KHÔNG nằm trong sql mà nằm trong values, đúng chỗ của dấu hỏi.'],
+    example: `buildSelect({ table: 'todos', where: { user_id: 7, completed: 0 }, orderBy: 'id', limit: 20 })
+// → { sql: 'SELECT * FROM todos WHERE user_id = ? AND completed = ? ORDER BY id ASC LIMIT ?',
+//      values: [7, 0, 20] }`
+  },
+  brief: `<p>Trong <code>todoRoutes.js</code>, mọi truy vấn đều có dạng <code>db.prepare('SELECT * FROM todos WHERE user_id = ?')</code> rồi <code>.all(req.userId)</code>. Dấu hỏi là chỗ trống, còn giá trị đi theo đường riêng — đó là <strong>tham số hoá</strong>, và là hàng phòng thủ duy nhất thật sự hiệu quả trước SQL injection.</p>
+<p>Viết hàm <code>buildSelect(query)</code> sinh ra cặp <code>{ sql, values }</code> đó. Ghép theo thứ tự:</p>
+<pre>SELECT &lt;cột&gt; FROM &lt;bảng&gt; [WHERE ...] [ORDER BY ... ASC|DESC] [LIMIT ?] [OFFSET ?]</pre>
+<ul>
+<li><code>columns</code> thiếu hoặc rỗng → dùng <code>*</code>; có thì nối bằng dấu phẩy và dấu cách</li>
+<li><code>where</code> có nhiều khoá → nối bằng <code>AND</code>, mỗi điều kiện là <code>cot = ?</code>, giá trị đẩy vào <code>values</code> theo đúng thứ tự khoá</li>
+<li><code>orderBy</code> có → thêm <code>ORDER BY cot ASC</code>, hoặc <code>DESC</code> khi <code>desc</code> là true</li>
+<li><code>limit</code> là số → thêm <code>LIMIT ?</code> và đẩy giá trị vào <code>values</code>. <code>offset</code> tương tự, luôn đứng sau limit</li>
+</ul>
+<p>Tên bảng và tên cột không tham số hoá được, nên phải kiểm tra: chỉ chữ, số và gạch dưới, sai thì ném <code>Error('tên không hợp lệ')</code>. Giá trị thì ngược lại — không kiểm tra gì cả, vì chúng không bao giờ đi vào chuỗi SQL.</p>`,
+  starter: `function buildSelect(query = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Gom mọi tên cần kiểm tra (bảng, columns, khoá của where, orderBy) rồi kiểm một lượt.',
+    'Dựng mảng mệnh đề rồi join(" ") — dễ đọc hơn nhiều so với nối chuỗi có if.',
+    'Thứ tự đẩy vào values phải khớp thứ tự dấu hỏi xuất hiện trong sql: where trước, rồi limit, rồi offset.'
+  ],
+  tests: [
+    { label: 'truy vấn đơn giản nhất', args: [{ table: 'todos' }], expect: { sql: 'SELECT * FROM todos', values: [] } },
+    { label: 'chọn cột', args: [{ table: 'users', columns: ['id', 'username'] }], expect: { sql: 'SELECT id, username FROM users', values: [] } },
+    { label: 'một điều kiện', args: [{ table: 'todos', where: { user_id: 7 } }], expect: { sql: 'SELECT * FROM todos WHERE user_id = ?', values: [7] } },
+    { label: 'nhiều điều kiện nối bằng AND', args: [{ table: 'todos', where: { user_id: 7, completed: 0 } }], expect: { sql: 'SELECT * FROM todos WHERE user_id = ? AND completed = ?', values: [7, 0] } },
+    { label: 'sắp xếp giảm dần', args: [{ table: 'todos', orderBy: 'id', desc: true }], expect: { sql: 'SELECT * FROM todos ORDER BY id DESC', values: [] } },
+    { label: 'phân trang', args: [{ table: 'todos', limit: 20, offset: 40 }], expect: { sql: 'SELECT * FROM todos LIMIT ? OFFSET ?', values: [20, 40] } },
+    { label: 'đủ mọi mệnh đề', args: [{ table: 'todos', columns: ['id', 'task'], where: { user_id: 7 }, orderBy: 'id', limit: 20 }], expect: { sql: 'SELECT id, task FROM todos WHERE user_id = ? ORDER BY id ASC LIMIT ?', values: [7, 20] } },
+    { label: 'giá trị nguy hiểm vẫn an toàn vì nằm ngoài sql', args: [{ table: 'users', where: { username: "' OR 1=1 --" } }], expect: { sql: 'SELECT * FROM users WHERE username = ?', values: ["' OR 1=1 --"] } },
+    { label: 'tên bảng lạ bị chặn', script: `try { fn({ table: 'users; DROP TABLE x' }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' },
+    { label: 'tên cột trong where bị chặn', script: `try { fn({ table: 'users', where: { 'a b': 1 } }); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'tên không hợp lệ' }
+  ],
+  solution: `function buildSelect(query = {}) {
+  const safe = /^[A-Za-z0-9_]+$/;
+  const check = (name) => {
+    if (!safe.test(String(name))) throw new Error('tên không hợp lệ');
+    return name;
+  };
+
+  check(query.table);
+
+  const columns = query.columns?.length ? query.columns.map(check).join(', ') : '*';
+  const clauses = ['SELECT ' + columns + ' FROM ' + query.table];
+  const values = [];
+
+  const where = query.where ?? {};
+  const keys = Object.keys(where);
+  if (keys.length) {
+    const conditions = keys.map((key) => check(key) + ' = ?');
+    clauses.push('WHERE ' + conditions.join(' AND '));
+    for (const key of keys) values.push(where[key]);
+  }
+
+  if (query.orderBy) {
+    clauses.push('ORDER BY ' + check(query.orderBy) + (query.desc ? ' DESC' : ' ASC'));
+  }
+
+  if (Number.isFinite(query.limit)) {
+    clauses.push('LIMIT ?');
+    values.push(query.limit);
+  }
+  if (Number.isFinite(query.offset)) {
+    clauses.push('OFFSET ?');
+    values.push(query.offset);
+  }
+
+  return { sql: clauses.join(' '), values };
+}`
+},
+{
+  id: 'node-51', lang: 'node', level: 'Trung bình', topic: 'SQLite', fn: 'prepareStatement',
+  title: 'Viết lại db.prepare()',
+  io: {
+    signature: 'prepareStatement(sql) → { sql, paramCount, bind }',
+    params: [
+      ['sql', 'string', 'Câu lệnh SQL có chỗ trống đánh dấu bằng dấu hỏi, ví dụ "INSERT INTO users (username, password) VALUES (?, ?)". Dấu hỏi nằm trong chuỗi nháy đơn KHÔNG được tính là chỗ trống.']
+    ],
+    returns: ['object',
+      'sql giữ nguyên · paramCount là số chỗ trống · bind(...values) trả về mảng giá trị, hoặc ném lỗi khi số lượng không khớp.'],
+    example: `const stmt = prepareStatement('SELECT * FROM todos WHERE user_id = ? AND completed = ?');
+stmt.paramCount;      // → 2
+stmt.bind(7, 0);      // → [7, 0]
+stmt.bind(7);         // ném Error('cần 2 tham số, nhận được 1')`
+  },
+  brief: `<p><code>db.prepare(sql)</code> trong <code>node:sqlite</code> không chạy gì cả — nó biên dịch câu lệnh một lần rồi trả về một <em>statement</em> mà bạn gọi <code>.run()</code>, <code>.get()</code> hay <code>.all()</code> với các giá trị. Tách hai bước như vậy đem lại hai lợi ích: chạy lại nhiều lần thì nhanh hơn, và giá trị không bao giờ lẫn vào câu lệnh.</p>
+<p>Viết hàm <code>prepareStatement(sql)</code> mô phỏng bước biên dịch.</p>
+<ul>
+<li><code>paramCount</code> — đếm số dấu <code>?</code> là chỗ trống thật</li>
+<li>Dấu <code>?</code> nằm <strong>bên trong chuỗi nháy đơn</strong> là dữ liệu, không phải chỗ trống, nên không được đếm</li>
+<li><code>bind(...values)</code> trả về mảng giá trị khi số lượng khớp</li>
+<li>Lệch số lượng → ném <code>Error('cần N tham số, nhận được M')</code> với N và M là số thật</li>
+<li>Câu lệnh không có dấu hỏi nào thì <code>bind()</code> gọi không tham số phải chạy được và trả về mảng rỗng</li>
+</ul>`,
+  starter: `function prepareStatement(sql) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Duyệt từng ký tự và giữ một cờ "đang ở trong chuỗi nháy đơn hay không".',
+    'Gặp dấu nháy đơn thì lật cờ; chỉ đếm dấu hỏi khi cờ đang tắt.',
+    'bind nhận tham số biến đổi: dùng (...values) rồi so values.length với paramCount.'
+  ],
+  tests: [
+    { label: 'đếm hai chỗ trống', script: `return fn('SELECT * FROM todos WHERE user_id = ? AND completed = ?').paramCount;`, expect: 2 },
+    { label: 'không có chỗ trống', script: `return fn('SELECT * FROM todos').paramCount;`, expect: 0 },
+    { label: 'dấu hỏi trong chuỗi không tính', script: `return fn("SELECT * FROM notes WHERE title = 'sao the?' AND id = ?").paramCount;`, expect: 1 },
+    { label: 'giữ nguyên sql', script: `return fn('SELECT 1').sql;`, expect: 'SELECT 1' },
+    { label: 'bind đúng số lượng', script: `return fn('INSERT INTO users (username, password) VALUES (?, ?)').bind('kiet', 'hash');`, expect: ['kiet', 'hash'] },
+    { label: 'bind không tham số khi không có chỗ trống', script: `return fn('SELECT * FROM todos').bind();`, expect: [] },
+    { label: 'thiếu tham số', script: `try { fn('SELECT * FROM t WHERE a = ? AND b = ?').bind(7); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'cần 2 tham số, nhận được 1' },
+    { label: 'thừa tham số', script: `try { fn('SELECT * FROM t WHERE a = ?').bind(7, 8, 9); return 'khong-nem'; } catch (e) { return e.message; }`, expect: 'cần 1 tham số, nhận được 3' },
+    { label: 'giá trị null vẫn được tính là một tham số', script: `return fn('UPDATE t SET a = ? WHERE id = ?').bind(null, 3);`, expect: [null, 3] }
+  ],
+  solution: `function prepareStatement(sql) {
+  const text = String(sql);
+
+  let paramCount = 0;
+  let inString = false;
+  for (const char of text) {
+    if (char === "'") inString = !inString;
+    else if (char === '?' && !inString) paramCount++;
+  }
+
+  return {
+    sql: text,
+    paramCount,
+    bind(...values) {
+      if (values.length !== paramCount) {
+        throw new Error('cần ' + paramCount + ' tham số, nhận được ' + values.length);
+      }
+      return values;
+    },
+  };
+}`
+},
+{
+  id: 'node-52', lang: 'node', level: 'Cơ bản', topic: 'SQLite', fn: 'findOrphanTodos',
+  title: 'Tìm bản ghi mồ côi',
+  io: {
+    signature: 'findOrphanTodos(todos, users) → Array<number>',
+    params: [
+      ['todos', 'Array<object> · mặc định []', 'Các dòng bảng todos. Mỗi dòng có id (number) và user_id (number, có thể là null khi chưa gán ai).'],
+      ['users', 'Array<object> · mặc định []', 'Các dòng bảng users. Mỗi dòng có id (number).']
+    ],
+    returns: ['Array<number>', 'id của những todo trỏ tới user không tồn tại, sắp tăng dần. Todo có user_id null hoặc undefined không bị tính là mồ côi.'],
+    example: `findOrphanTodos([{ id: 1, user_id: 10 }, { id: 2, user_id: 99 }], [{ id: 10 }])
+// → [2]`
+  },
+  brief: `<p>Bảng <code>todos</code> có dòng <code>FOREIGN KEY(user_id) REFERENCES users(id)</code>. Ràng buộc đó nói: mỗi todo phải thuộc về một user có thật. Nhưng SQLite <strong>mặc định không bật kiểm tra khoá ngoại</strong> — bạn phải bật bằng <code>PRAGMA foreign_keys = ON</code>. Quên bật thì database vui vẻ nhận những todo trỏ tới user không tồn tại, và bạn chỉ phát hiện ra khi báo cáo cho ra số liệu vô lý.</p>
+<p>Viết hàm <code>findOrphanTodos(todos, users)</code> rà lại dữ liệu và chỉ ra những dòng hỏng.</p>
+<ul>
+<li>Todo <strong>mồ côi</strong> khi <code>user_id</code> của nó không có trong danh sách users</li>
+<li><code>user_id</code> là <code>null</code> hoặc <code>undefined</code> nghĩa là cố ý chưa gán, <strong>không</strong> tính là mồ côi</li>
+<li>Trả về mảng id, <strong>sắp tăng dần</strong></li>
+<li>Không có dòng nào hỏng → mảng rỗng</li>
+</ul>
+<p class="callout">Độ phức tạp phải là O(n + m): dựng một Set các id user trước, đừng gọi <code>find</code> bên trong vòng lặp. Với 10 nghìn todo và 5 nghìn user, cách lồng nhau chạy 50 triệu phép so sánh.</p>`,
+  starter: `function findOrphanTodos(todos = [], users = []) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'new Set(users.map(u => u.id)) cho phép kiểm tra tồn tại trong thời gian hằng số.',
+    'Dùng == null để bắt cả null lẫn undefined chỉ bằng một phép so sánh.',
+    'sort() mặc định so chuỗi — với số phải truyền hàm so sánh (a, b) => a - b.'
+  ],
+  tests: [
+    { label: 'dữ liệu sạch', args: [[{ id: 1, user_id: 10 }], [{ id: 10 }]], expect: [] },
+    { label: 'một dòng mồ côi', args: [[{ id: 1, user_id: 10 }, { id: 2, user_id: 99 }], [{ id: 10 }]], expect: [2] },
+    { label: 'nhiều dòng mồ côi, sắp tăng dần', args: [[{ id: 30, user_id: 99 }, { id: 4, user_id: 98 }], [{ id: 10 }]], expect: [4, 30] },
+    { label: 'user_id null không tính là mồ côi', args: [[{ id: 1, user_id: null }], [{ id: 10 }]], expect: [] },
+    { label: 'thiếu hẳn user_id cũng không tính', args: [[{ id: 1 }], [{ id: 10 }]], expect: [] },
+    { label: 'không có user nào', args: [[{ id: 1, user_id: 1 }], []], expect: [1] },
+    { label: 'danh sách rỗng', args: [[], []], expect: [] },
+    { label: 'không dùng find lồng trong vòng lặp', script: `let finds = 0;
+const users = [{ id: 1 }];
+const proxy = new Proxy(users, { get(t, p) { if (p === 'find') finds++; return t[p]; } });
+fn([{ id: 1, user_id: 1 }, { id: 2, user_id: 1 }], proxy);
+return finds;`, expect: 0 }
+  ],
+  solution: `function findOrphanTodos(todos = [], users = []) {
+  const ids = new Set(users.map((user) => user.id));
+
+  return todos
+    .filter((todo) => todo.user_id != null && !ids.has(todo.user_id))
+    .map((todo) => todo.id)
+    .sort((a, b) => a - b);
+}`
+},
+{
+  id: 'node-53', lang: 'node', level: 'Cơ bản', topic: 'SQLite', fn: 'toSqliteValue',
+  title: 'SQLite không có kiểu boolean',
+  io: {
+    signature: 'toSqliteValue(value) → number | string | null',
+    params: [
+      ['value', 'bất kỳ', 'Giá trị JavaScript sắp ghi xuống SQLite: boolean, number, string, null, undefined, Date, hoặc object/mảng.']
+    ],
+    returns: ['number | string | null', 'Giá trị SQLite nhận được. Object và mảng bị chuyển thành chuỗi JSON.'],
+    example: `toSqliteValue(true)              // → 1
+toSqliteValue(undefined)         // → null
+toSqliteValue({ a: 1 })          // → '{"a":1}'`
+  },
+  brief: `<p>SQLite chỉ có năm kiểu lưu trữ: <code>NULL</code>, <code>INTEGER</code>, <code>REAL</code>, <code>TEXT</code>, <code>BLOB</code>. Không có boolean, không có ngày tháng, không có JSON. Đó là lý do bảng <code>todos</code> khai báo <code>completed BOOLEAN DEFAULT 0</code> — chữ <code>BOOLEAN</code> chỉ là ghi chú cho người đọc, còn giá trị thật lưu xuống là số 0 hoặc 1.</p>
+<p>Viết hàm <code>toSqliteValue(value)</code> chuyển đổi trước khi ghi:</p>
+<table><thead><tr><th>Vào</th><th>Ra</th><th>Vì sao</th></tr></thead><tbody>
+<tr><td><code>true</code> / <code>false</code></td><td><code>1</code> / <code>0</code></td><td>Không có kiểu boolean</td></tr>
+<tr><td><code>undefined</code></td><td><code>null</code></td><td>SQLite không hiểu undefined</td></tr>
+<tr><td><code>null</code></td><td><code>null</code></td><td>Giữ nguyên</td></tr>
+<tr><td><code>Date</code></td><td>Chuỗi ISO</td><td>Sắp xếp được theo thứ tự chữ cái, và không mất múi giờ</td></tr>
+<tr><td>Object hoặc mảng</td><td>Chuỗi JSON</td><td>Không có kiểu JSON</td></tr>
+<tr><td>Số, chuỗi</td><td>Giữ nguyên</td><td>Đã đúng kiểu</td></tr>
+</tbody></table>
+<p class="warn"><code>NaN</code> và <code>Infinity</code> cũng là number nhưng SQLite không lưu được — chuyển cả hai thành <code>null</code>.</p>`,
+  starter: `function toSqliteValue(value) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Xét undefined và null trước, vì typeof null là "object" và sẽ rơi nhầm vào nhánh JSON.',
+    'value instanceof Date nhận ra đối tượng ngày; toISOString() cho chuỗi chuẩn.',
+    'Number.isFinite loại được cả NaN lẫn Infinity chỉ bằng một phép kiểm tra.'
+  ],
+  tests: [
+    { label: 'true thành 1', args: [true], expect: 1 },
+    { label: 'false thành 0', args: [false], expect: 0 },
+    { label: 'undefined thành null', args: [undefined], expect: null },
+    { label: 'null giữ nguyên', args: [null], expect: null },
+    { label: 'số giữ nguyên', args: [42], expect: 42 },
+    { label: 'chuỗi giữ nguyên', args: ['xin chao'], expect: 'xin chao' },
+    { label: 'NaN thành null', args: [NaN], expect: null },
+    { label: 'Infinity thành null', args: [Infinity], expect: null },
+    { label: 'Date thành chuỗi ISO', script: `return fn(new Date('2026-09-20T10:00:00.000Z'));`, expect: '2026-09-20T10:00:00.000Z' },
+    { label: 'object thành JSON', args: [{ a: 1 }], expect: '{"a":1}' },
+    { label: 'mảng thành JSON', args: [[1, 2]], expect: '[1,2]' }
+  ],
+  solution: `function toSqliteValue(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  return JSON.stringify(value);
+}`
+},
+{
+  id: 'node-54', lang: 'node', level: 'Trung bình', topic: 'SQLite', fn: 'escapeLike',
+  title: 'Thoát ký tự trong LIKE',
+  io: {
+    signature: 'escapeLike(text) → string',
+    params: [
+      ['text', 'string', 'Từ khoá người dùng gõ vào ô tìm kiếm. Có thể chứa %, _ hoặc dấu gạch chéo ngược — những ký tự mang ý nghĩa đặc biệt trong LIKE.']
+    ],
+    returns: ['string', 'Chuỗi đã thoát, dùng an toàn trong LIKE với ESCAPE \'\\\\\'.'],
+    example: `escapeLike('giam 50%')    // → 'giam 50\\\\%'
+escapeLike('file_name')    // → 'file\\\\_name'`
+  },
+  brief: `<p>Tham số hoá chặn được SQL injection, nhưng nó <strong>không</strong> chặn được một vấn đề khác: trong mệnh đề <code>LIKE</code>, hai ký tự <code>%</code> và <code>_</code> có nghĩa đặc biệt.</p>
+<ul>
+<li><code>%</code> khớp với chuỗi bất kỳ, dài bao nhiêu cũng được</li>
+<li><code>_</code> khớp với đúng một ký tự bất kỳ</li>
+</ul>
+<p>Người dùng tìm <code>"giam 50%"</code> sẽ nhận về mọi dòng bắt đầu bằng "giam 50" — không phải lỗi bảo mật, nhưng là kết quả sai. Còn người dùng gõ mỗi dấu <code>%</code> thì lấy về toàn bộ bảng.</p>
+<p>Viết hàm <code>escapeLike(text)</code> thêm dấu gạch chéo ngược trước các ký tự đặc biệt:</p>
+<ul>
+<li><code>\\</code> → <code>\\\\</code> (phải xử lý <strong>trước</strong>, nếu không bạn sẽ thoát nhầm dấu mình vừa thêm vào)</li>
+<li><code>%</code> → <code>\\%</code></li>
+<li><code>_</code> → <code>\\_</code></li>
+<li>Mọi ký tự khác giữ nguyên</li>
+</ul>
+<p>Câu truy vấn hoàn chỉnh sẽ là: <code>WHERE task LIKE ? ESCAPE '\\'</code> với giá trị là <code>'%' + escapeLike(tuKhoa) + '%'</code>.</p>`,
+  starter: `function escapeLike(text) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Thứ tự thay thế quan trọng: gạch chéo ngược trước, rồi mới tới % và _.',
+    'Một biểu thức chính quy với lớp ký tự và cờ g làm được cả ba trong một lần.',
+    'Trong chuỗi JavaScript, một dấu gạch chéo ngược phải viết thành hai.'
+  ],
+  tests: [
+    { label: 'chuỗi thường giữ nguyên', args: ['hoc backend'], expect: 'hoc backend' },
+    { label: 'thoát phần trăm', args: ['giam 50%'], expect: 'giam 50\\%' },
+    { label: 'thoát gạch dưới', args: ['file_name'], expect: 'file\\_name' },
+    { label: 'thoát gạch chéo ngược', args: ['a\\b'], expect: 'a\\\\b' },
+    { label: 'nhiều ký tự đặc biệt', args: ['%_%'], expect: '\\%\\_\\%' },
+    { label: 'gạch chéo ngược đứng trước phần trăm', args: ['\\%'], expect: '\\\\\\%' },
+    { label: 'chuỗi rỗng', args: [''], expect: '' }
+  ],
+  solution: `function escapeLike(text) {
+  return String(text).replace(/[\\\\%_]/g, (char) => '\\\\' + char);
+}`
+},
+{
+  id: 'node-55', lang: 'node', level: 'Cơ bản', topic: 'Middleware', fn: 'formatLogLine',
+  title: 'Một dòng log cho mỗi request',
+  io: {
+    signature: 'formatLogLine(entry) → string',
+    params: [
+      ['entry', 'object', 'Thông tin một request đã xử lý xong: method (string), path (string), status (number), ms (number, thời gian xử lý), userId (number hoặc null, tuỳ chọn).']
+    ],
+    returns: ['string', 'Một dòng log theo đúng định dạng mô tả trong đề bài.'],
+    example: `formatLogLine({ method: 'post', path: '/todos', status: 201, ms: 12.7, userId: 7 })
+// → 'POST /todos 201 13ms user=7'`
+  },
+  brief: `<p>Middleware ghi log là middleware đầu tiên nên có trong mọi dự án. Khi có sự cố, một dòng log tốt cho biết ngay: ai gọi, gọi gì, kết quả ra sao, mất bao lâu.</p>
+<p>Viết hàm <code>formatLogLine(entry)</code> sinh dòng log theo định dạng:</p>
+<pre>&lt;METHOD&gt; &lt;path&gt; &lt;status&gt; &lt;ms&gt;ms[ user=&lt;userId&gt;][ SLOW]</pre>
+<ul>
+<li><code>method</code> viết HOA</li>
+<li><code>ms</code> làm tròn tới số nguyên gần nhất</li>
+<li>Có <code>userId</code> (khác <code>null</code> và <code>undefined</code>) thì thêm <code> user=&lt;id&gt;</code></li>
+<li><code>ms</code> từ 1000 trở lên thì thêm <code> SLOW</code> vào cuối — để sau này lọc log chậm bằng một lệnh grep</li>
+<li>Các phần ngăn nhau bằng đúng một dấu cách, không có dấu cách thừa ở hai đầu</li>
+</ul>`,
+  starter: `function formatLogLine(entry = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Dựng một mảng các mảnh rồi join(" ") — không bao giờ sinh ra dấu cách thừa.',
+    'Math.round làm tròn tới số nguyên gần nhất; 12.5 thành 13.',
+    'userId != null bắt cả null lẫn undefined nhưng vẫn giữ lại số 0.'
+  ],
+  tests: [
+    { label: 'request thường', args: [{ method: 'GET', path: '/todos', status: 200, ms: 4 }], expect: 'GET /todos 200 4ms' },
+    { label: 'method viết thường', args: [{ method: 'post', path: '/todos', status: 201, ms: 12 }], expect: 'POST /todos 201 12ms' },
+    { label: 'làm tròn thời gian', args: [{ method: 'GET', path: '/', status: 200, ms: 12.7 }], expect: 'GET / 200 13ms' },
+    { label: 'có userId', args: [{ method: 'GET', path: '/todos', status: 200, ms: 4, userId: 7 }], expect: 'GET /todos 200 4ms user=7' },
+    { label: 'userId null thì bỏ qua', args: [{ method: 'GET', path: '/todos', status: 401, ms: 1, userId: null }], expect: 'GET /todos 401 1ms' },
+    { label: 'userId bằng 0 vẫn ghi', args: [{ method: 'GET', path: '/', status: 200, ms: 1, userId: 0 }], expect: 'GET / 200 1ms user=0' },
+    { label: 'đánh dấu request chậm', args: [{ method: 'GET', path: '/report', status: 200, ms: 2400 }], expect: 'GET /report 200 2400ms SLOW' },
+    { label: 'đúng mốc 1000ms đã là chậm', args: [{ method: 'GET', path: '/x', status: 200, ms: 1000, userId: 3 }], expect: 'GET /x 200 1000ms user=3 SLOW' }
+  ],
+  solution: `function formatLogLine(entry = {}) {
+  const ms = Math.round(entry.ms);
+  const parts = [
+    String(entry.method).toUpperCase(),
+    entry.path,
+    entry.status,
+    ms + 'ms',
+  ];
+
+  if (entry.userId != null) parts.push('user=' + entry.userId);
+  if (ms >= 1000) parts.push('SLOW');
+
+  return parts.join(' ');
+}`
+},
+{
+  id: 'node-56', lang: 'node', level: 'Trung bình', topic: 'Middleware', fn: 'corsHeaders',
+  title: 'Middleware CORS',
+  io: {
+    signature: 'corsHeaders(origin, options) → object',
+    params: [
+      ['origin', 'string | undefined', 'Giá trị header Origin của request, ví dụ "http://localhost:5173". Request cùng origin không gửi header này, khi đó giá trị là undefined.'],
+      ['options', 'object · mặc định {}', 'allowed (mảng origin được phép, mặc định []), credentials (boolean, cho phép gửi cookie, mặc định false), methods (mảng method, mặc định ["GET","POST","PUT","DELETE","OPTIONS"]).']
+    ],
+    returns: ['object',
+      'Các header cần đặt lên response. Origin không được phép, hoặc request không có Origin → trả object rỗng.'],
+    example: `corsHeaders('http://localhost:5173', { allowed: ['http://localhost:5173'], credentials: true })
+// → { 'Access-Control-Allow-Origin': 'http://localhost:5173',
+//      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+//      'Access-Control-Allow-Credentials': 'true' }`
+  },
+  brief: `<p>Frontend chạy ở <code>localhost:5173</code>, backend ở <code>localhost:5003</code>. Trình duyệt coi đây là hai <strong>origin</strong> khác nhau và chặn request — đó là lỗi CORS, và nó là lỗi đầu tiên mà mọi người học full stack đều gặp.</p>
+<p>Điều quan trọng cần hiểu: CORS là <strong>quy tắc của trình duyệt</strong>, và chỉ server mới gỡ được. Nó không phải lỗi trong code frontend của bạn, và cũng không bảo vệ server — curl hay Postman bỏ qua CORS hoàn toàn.</p>
+<p>Viết hàm <code>corsHeaders(origin, options)</code> quyết định những header cần trả về.</p>
+<ul>
+<li><code>origin</code> nằm trong <code>options.allowed</code> → trả <code>Access-Control-Allow-Origin</code> bằng <strong>chính origin đó</strong>, cùng <code>Access-Control-Allow-Methods</code> là danh sách method nối bằng dấu phẩy và dấu cách</li>
+<li><code>options.credentials</code> là true → thêm <code>Access-Control-Allow-Credentials: 'true'</code></li>
+<li><code>origin</code> không được phép, hoặc <code>undefined</code> (request cùng origin) → trả object rỗng</li>
+<li><code>allowed</code> chứa <code>'*'</code> → cho phép mọi origin. Nhưng khi <code>credentials</code> là true thì <code>'*'</code> <strong>bị bỏ qua</strong> và kết quả là object rỗng</li>
+</ul>
+<p class="warn">Quy tắc cuối không phải tôi đặt ra — đó là quy định của chuẩn CORS. Cho phép mọi trang trên internet gửi kèm cookie của người dùng tới API của bạn thì bất kỳ trang nào cũng thao tác được thay họ. Trình duyệt từ chối tổ hợp đó.</p>`,
+  starter: `function corsHeaders(origin, options = {}) {
+  // Viết code ở đây
+}`,
+  hints: [
+    'Xử lý trường hợp không có origin trước — trả object rỗng ngay.',
+    'Kiểm tra tổ hợp "*" với credentials trước khi làm bất cứ việc gì khác.',
+    'Danh sách method mặc định nên đặt thành hằng số ở đầu hàm.'
+  ],
+  tests: [
+    { label: 'origin được phép', args: ['http://localhost:5173', { allowed: ['http://localhost:5173'] }], expect: { 'Access-Control-Allow-Origin': 'http://localhost:5173', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' } },
+    { label: 'kèm credentials', args: ['http://localhost:5173', { allowed: ['http://localhost:5173'], credentials: true }], expect: { 'Access-Control-Allow-Origin': 'http://localhost:5173', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Allow-Credentials': 'true' } },
+    { label: 'origin không được phép', args: ['http://ke-xau.com', { allowed: ['http://localhost:5173'] }], expect: {} },
+    { label: 'không có origin', args: [undefined, { allowed: ['http://localhost:5173'] }], expect: {} },
+    { label: 'danh sách cho phép rỗng', args: ['http://localhost:5173', {}], expect: {} },
+    { label: 'sao cho phép mọi origin', args: ['http://bat-ky.com', { allowed: ['*'] }], expect: { 'Access-Control-Allow-Origin': 'http://bat-ky.com', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' } },
+    { label: 'sao đi với credentials thì bị từ chối', args: ['http://bat-ky.com', { allowed: ['*'], credentials: true }], expect: {} },
+    { label: 'danh sách method tuỳ chỉnh', args: ['http://a.com', { allowed: ['http://a.com'], methods: ['GET', 'POST'] }], expect: { 'Access-Control-Allow-Origin': 'http://a.com', 'Access-Control-Allow-Methods': 'GET, POST' } }
+  ],
+  solution: `function corsHeaders(origin, options = {}) {
+  const DEFAULT_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'];
+  const allowed = options.allowed ?? [];
+  const credentials = Boolean(options.credentials);
+
+  if (!origin) return {};
+
+  const wildcard = allowed.includes('*');
+  if (wildcard && credentials) return {}; // chuẩn CORS cấm tổ hợp này
+  if (!wildcard && !allowed.includes(origin)) return {};
+
+  const headers = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': (options.methods ?? DEFAULT_METHODS).join(', '),
+  };
+  if (credentials) headers['Access-Control-Allow-Credentials'] = 'true';
+
+  return headers;
+}`
 }
 ];
